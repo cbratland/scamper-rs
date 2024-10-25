@@ -1,6 +1,6 @@
 # scamper-rs
 
-implementation of [scamper](https://github.com/slag-plt/scamper) (lisp) in rust.
+implementation of [scamper](https://github.com/slag-plt/scamper) (lisp) in rust. try it: [https://cbratland.github.io/scamper-rs/](https://cbratland.github.io/scamper-rs/).
 
 made for fun and not up to spec with the original scamper.
 
@@ -30,4 +30,5 @@ currently only some basic stuff from prelude and the image library is implemente
 - `cond`, `match`, `cond`, `section`, `o`, etc.
 - music functionality
 - code highlighting / parenthesis matching in the web interface
+- error handling on the web interface
 - the debugging features of the original scamper
