@@ -145,6 +145,13 @@ impl Operation {
         }
     }
 
+    pub fn let_(names: Vec<String>, body: Block, span: Span) -> Self {
+        Self {
+            kind: OperationKind::Let { names, body },
+            span,
+        }
+    }
+
     pub fn if_(if_block: Block, else_block: Block, span: Span) -> Self {
         Self {
             kind: OperationKind::If {

@@ -23,6 +23,10 @@ impl Delimiter {
             Delimiter::Bracket => ']',
         }
     }
+
+    pub fn is_bracket(&self) -> bool {
+        matches!(self, Delimiter::Bracket)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

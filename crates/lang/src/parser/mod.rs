@@ -166,12 +166,46 @@ pub enum ParserValueKind {
     Value(Value),
     Symbol(String),
     List(Vec<ParserValue>),
+    Vector(Vec<ParserValue>),
 }
 
 #[derive(Debug, Clone)]
 pub struct ParserValue {
     pub kind: ParserValueKind,
     pub span: Span,
+}
+
+impl ParserValue {
+    pub fn sym(sym: String, span: Span) -> Self {
+        Self {
+            kind: ParserValueKind::Symbol(sym),
+            span,
+        }
+    }
+
+    pub fn list(values: Vec<ParserValue>, span: Span) -> Self {
+        Self {
+            kind: ParserValueKind::List(values),
+            span,
+        }
+    }
+}
+
+impl Into<Value> for ParserValue {
+    fn into(self) -> Value {
+        match self.kind {
+            ParserValueKind::Value(value) => value,
+            ParserValueKind::Symbol(sym) => Value::Symbol(sym),
+            ParserValueKind::List(values) => {
+                let values: Vec<Value> = values.into_iter().map(|v| v.into()).collect();
+                Value::List(values)
+            }
+            ParserValueKind::Vector(values) => {
+                let values: Vec<Value> = values.into_iter().map(|v| v.into()).collect();
+                Value::Vector(values)
+            }
+        }
+    }
 }
 
 // value parsing
@@ -209,10 +243,18 @@ impl<'a> Parser<'a> {
 
             self.next();
 
-            Ok(ParserValue {
-                kind: ParserValueKind::List(values),
-                span: begin.to(&end),
-            })
+            if open_delimiter.is_bracket() {
+                // treat as list
+                Ok(ParserValue {
+                    kind: ParserValueKind::Vector(values),
+                    span: begin.to(&end),
+                })
+            } else {
+                Ok(ParserValue {
+                    kind: ParserValueKind::List(values),
+                    span: begin.to(&end),
+                })
+            }
         } else if self.check(&TokenKind::Quote) {
             // treat as (quote whatever)
             todo!()
@@ -277,103 +319,20 @@ impl<'a> Parser<'a> {
 
 // statement parsing
 impl<'a> Parser<'a> {
-    pub fn lower(&mut self, value: ParserValue) -> Result<Vec<Operation>> {
-        match value.kind {
-            ParserValueKind::Value(val) => Ok(vec![Operation::value(val, value.span)]),
-            ParserValueKind::Symbol(sym) => Ok(vec![Operation::var(sym, value.span)]),
+    // parse all statements in the token stream
+    pub fn parse_statements(&mut self) -> Result<Vec<Statement>> {
+        let mut stmts = vec![];
 
-            ParserValueKind::List(values) => {
-                if values.is_empty() {
-                    return Ok(vec![Operation::value(Value::Null, value.span)]);
-                }
-
-                let arity = values.len() as u32 - 1;
-                let head = &values[0];
-
-                // handle special forms (if, let, etc.)
-                if let ParserValueKind::Symbol(sym) = &head.kind {
-                    let form = sym.as_ref();
-                    if SPECIAL_FORMS.contains(&form) {
-                        let args = &values[1..];
-                        return self.handle_special_form(form, args, value.span);
-                    }
-                }
-
-                let mut ops = vec![];
-                for value in values {
-                    ops.extend(self.lower(value)?);
-                }
-                ops.push(Operation {
-                    kind: OperationKind::Application { arity },
-                    span: value.span,
-                });
-                Ok(ops)
-            }
-        }
-    }
-
-    pub fn handle_special_form(
-        &mut self,
-        form: &str,
-        args: &[ParserValue],
-        span: Span,
-    ) -> Result<Vec<Operation>> {
-        match form {
-            keyword::Lambda => self.parse_lambda(args, span),
-            keyword::If => self.parse_if(args, span),
-            _ => todo!(),
-        }
-    }
-
-    pub fn parse_if(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
-        if args.len() != 3 {
-            return Err(ParseError::new(
-                "if expression must have 3 sub-expressions: a guard, if-branch, and else-branch",
-                Some(self.token.span),
-            ));
+        while let Some(stmt) = self.parse_stmt()? {
+            stmts.push(stmt);
         }
 
-        let mut ops = self.lower(args[0].clone())?;
-        ops.push(Operation::if_(
-            self.lower(args[1].clone())?,
-            self.lower(args[2].clone())?,
-            span,
-        ));
-        Ok(ops)
-    }
-
-    pub fn parse_lambda(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
-        if args.len() != 2 {
-            return Err(ParseError::new(
-                "lambda expression must have 2 sub-components: a parameter list and a body",
-                Some(self.token.span),
-            ));
+        if !self.eat(&TokenKind::Eof) {
+            // todo: when does this happen?
+            panic!("expected EOF")
+        } else {
+            Ok(stmts)
         }
-
-        let ParserValueKind::List(lmbda_args) = &args[0].kind else {
-            return Err(ParseError::new(
-                "the first component of a lambda expression must be a parameter list",
-                Some(args[0].span),
-            ));
-        };
-
-        let mut params = vec![];
-        for arg in lmbda_args {
-            if let ParserValueKind::Symbol(sym) = &arg.kind {
-                params.push(sym.clone());
-            } else {
-                return Err(ParseError::new(
-                    "parameters must only be identifiers",
-                    Some(arg.span),
-                ));
-            }
-        }
-
-        Ok(vec![Operation::closure(
-            params,
-            self.lower(args[1].clone())?,
-            span,
-        )])
     }
 
     pub fn parse_stmt(&mut self) -> Result<Option<Statement>> {
@@ -459,20 +418,218 @@ impl<'a> Parser<'a> {
         Ok(Some(Statement::expr(self.lower(value)?, span)))
     }
 
-    // parse all statements in the token stream
-    pub fn parse_statements(&mut self) -> Result<Vec<Statement>> {
-        let mut stmts = vec![];
+    pub fn lower(&mut self, value: ParserValue) -> Result<Vec<Operation>> {
+        match value.kind {
+            ParserValueKind::Value(val) => Ok(vec![Operation::value(val, value.span)]),
+            ParserValueKind::Symbol(sym) => Ok(vec![Operation::var(sym, value.span)]),
+            ParserValueKind::Vector(vec) => Ok(vec![Operation::value(
+                Value::Vector(vec.into_iter().map(|v| v.into()).collect()),
+                value.span,
+            )]),
 
-        while let Some(stmt) = self.parse_stmt()? {
-            stmts.push(stmt);
+            ParserValueKind::List(values) => {
+                if values.is_empty() {
+                    return Ok(vec![Operation::value(Value::Null, value.span)]);
+                }
+
+                let arity = values.len() as u32 - 1;
+                let head = &values[0];
+
+                // handle special forms (if, let, etc.)
+                if let ParserValueKind::Symbol(sym) = &head.kind {
+                    let form = sym.as_ref();
+                    if SPECIAL_FORMS.contains(&form) {
+                        let args = &values[1..];
+                        return self.handle_special_form(form, args, value.span);
+                    }
+                }
+
+                let mut ops = vec![];
+                for value in values {
+                    ops.extend(self.lower(value)?);
+                }
+                ops.push(Operation {
+                    kind: OperationKind::Application { arity },
+                    span: value.span,
+                });
+                Ok(ops)
+            }
+        }
+    }
+}
+
+impl<'a> Parser<'a> {
+    pub fn handle_special_form(
+        &mut self,
+        form: &str,
+        args: &[ParserValue],
+        span: Span,
+    ) -> Result<Vec<Operation>> {
+        match form {
+            keyword::Lambda => self.parse_lambda(args, span),
+            keyword::Let => self.parse_let(args, span),
+            keyword::LetStar => self.parse_let_star(args, span),
+            keyword::If => self.parse_if(args, span),
+            _ => todo!(),
+        }
+    }
+
+    pub fn parse_lambda(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        if args.len() != 2 {
+            return Err(ParseError::new(
+                "lambda expression must have 2 sub-components: a parameter list and a body",
+                Some(self.token.span),
+            ));
         }
 
-        if !self.eat(&TokenKind::Eof) {
-            // todo: when does this happen?
-            panic!("expected EOF")
-        } else {
-            Ok(stmts)
+        let ParserValueKind::List(lmbda_args) = &args[0].kind else {
+            return Err(ParseError::new(
+                "the first component of a lambda expression must be a parameter list",
+                Some(args[0].span),
+            ));
+        };
+
+        let mut params = vec![];
+        for arg in lmbda_args {
+            if let ParserValueKind::Symbol(sym) = &arg.kind {
+                params.push(sym.clone());
+            } else {
+                return Err(ParseError::new(
+                    "parameters must only be identifiers",
+                    Some(arg.span),
+                ));
+            }
         }
+
+        Ok(vec![Operation::closure(
+            params,
+            self.lower(args[1].clone())?,
+            span,
+        )])
+    }
+
+    pub fn parse_let(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        if args.len() != 2 {
+            return Err(ParseError::new(
+                "let expression must have 2 sub-components: a binding list and a body",
+                Some(self.token.span),
+            ));
+        }
+
+        let ParserValueKind::List(bindings) = &args[0].kind else {
+            return Err(ParseError::new(
+                "let expression bindings must be given as a list",
+                Some(args[0].span),
+            ));
+        };
+
+        let parsed_bindings = bindings
+            .iter()
+            .map(|binding| self.parse_binding(binding))
+            .collect::<Result<Vec<_>>>()?;
+
+        let names = parsed_bindings
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>();
+
+        let mut ops = parsed_bindings
+            .into_iter()
+            .flat_map(|(_, ops)| ops)
+            .collect::<Vec<_>>();
+
+        ops.push(Operation::let_(names, self.lower(args[1].clone())?, span));
+
+        Ok(ops)
+    }
+
+    fn parse_let_star(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        if args.len() != 2 {
+            return Err(ParseError::new(
+                "let* expression must have 2 sub-components: a binding list and a body",
+                Some(self.token.span),
+            ));
+        }
+
+        let ParserValueKind::List(bindings) = &args[0].kind else {
+            return Err(ParseError::new(
+                "let* expression bindings must be given as a list",
+                Some(args[0].span),
+            ));
+        };
+
+        if bindings.is_empty() {
+            return Err(ParseError::new(
+                "binding pair must be given as a vector",
+                Some(args[0].span),
+            ));
+        };
+
+        let mut value = ParserValue::list(
+            vec![
+                ParserValue::sym(String::from("let"), span),
+                ParserValue::list(vec![bindings.last().unwrap().clone()], span),
+                args[1].clone(),
+            ],
+            span,
+        );
+        for binding in bindings.iter().rev().skip(1) {
+            value = ParserValue::list(
+                vec![
+                    ParserValue::sym(String::from("let"), span),
+                    ParserValue::list(vec![binding.clone()], span),
+                    value,
+                ],
+                span,
+            );
+        }
+
+        self.lower(value)
+    }
+
+    fn parse_binding(&mut self, value: &ParserValue) -> Result<(String, Vec<Operation>)> {
+        let ParserValueKind::Vector(binding) = &value.kind else {
+            return Err(ParseError::new(
+                "binding pair must be given as a vector",
+                Some(value.span),
+            ));
+        };
+
+        if binding.len() != 2 {
+            return Err(ParseError::new(
+                "binding must be a pair of a name and value",
+                Some(value.span),
+            ));
+        }
+
+        let name = match &binding[0].kind {
+            ParserValueKind::Symbol(sym) => sym.clone(),
+            _ => {
+                return Err(ParseError::new(
+                    "the first component of a binding must be a symbol",
+                    Some(value.span),
+                ))
+            }
+        };
+
+        Ok((name, self.lower(binding[1].clone())?))
+    }
+
+    pub fn parse_if(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        if args.len() != 3 {
+            return Err(ParseError::new(
+                "if expression must have 3 sub-expressions: a guard, if-branch, and else-branch",
+                Some(self.token.span),
+            ));
+        }
+
+        let mut ops = self.lower(args[0].clone())?;
+        ops.push(Operation::if_(
+            self.lower(args[1].clone())?,
+            self.lower(args[2].clone())?,
+            span,
+        ));
+        Ok(ops)
     }
 }
 

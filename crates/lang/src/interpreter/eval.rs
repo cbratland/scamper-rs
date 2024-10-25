@@ -172,6 +172,27 @@ impl ExecutionStack {
                     }
                 };
             }
+            OperationKind::Let { names, body } => {
+                // todo: assert names aren't reserved?
+                if self.stack.len() < names.len() {
+                    return Err(RuntimeError::new(
+                        format!("Not enough values on stack for let binding"),
+                        Some(op.span),
+                    ));
+                }
+
+                let values = self.stack.split_off(self.stack.len() - names.len());
+
+                let new_env = Rc::new((*self.env).clone());
+                {
+                    let mut new_env = new_env.borrow_mut();
+                    for (name, value) in names.iter().zip(values.iter()) {
+                        new_env.set(name.clone(), value.clone());
+                    }
+                }
+
+                self.dump_and_switch(Some(new_env), body)?;
+            }
             _ => todo!(),
         }
         Ok(())

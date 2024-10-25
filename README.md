@@ -26,8 +26,8 @@ but you might need to set up [leptos](https://leptos.dev) and trunk first (the l
 currently only some basic stuff from prelude and the image library is implemented. some big things that are missing:
 
 - structs
-- `let`/`let*`
 - `cond`, `match`, `cond`, `section`, `o`, etc.
+- quotes
 - music functionality
 - code highlighting / parenthesis matching in the web interface
 - error handling on the web interface
