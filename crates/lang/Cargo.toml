@@ -1,0 +1,10 @@
+[package]
+name = "scamper-rs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+
+[dependencies]
+bytecount = "0.6"
+scamper-macros = { path = "../macros" }

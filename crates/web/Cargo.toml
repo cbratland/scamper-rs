@@ -1,0 +1,13 @@
+[package]
+name = "web"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+codemirror = "0.2.0"
+leptos = { version = "0.6.15", features = ["csr"] }
+scamper-rs = { path = "../lang" }
+web-sys = { version = "0.3.72", features = [
+	"Storage",
+	"CanvasRenderingContext2d",
+] }
