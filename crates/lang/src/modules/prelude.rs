@@ -36,6 +36,15 @@ pub fn add_to(env: &mut Env) {
     env.register("remainder", remainder);
     env.register("modulo", modulo);
 
+    env.register("pair?", pair_q);
+    env.register("pair", cons);
+    env.register("cons", cons);
+    env.register("car", car);
+    env.register("cdr", cdr);
+    env.register("list?", list_q);
+    env.register("list", list);
+    env.register("length", length);
+
     // additional constants
     env.register_value("else", true);
     env.register_value("null", Value::Null);
@@ -212,4 +221,82 @@ fn remainder(x: Number, y: Number) -> Value {
 #[function]
 fn modulo(x: Number, y: Number) -> Number {
     x % y
+}
+
+#[function]
+fn pair_q(x: Value) -> bool {
+    matches!(x, Value::Pair(_, _))
+}
+
+#[function]
+fn cons(x: Value, y: Value) -> Value {
+    match y {
+        Value::Null => Value::List(vec![x]),
+        Value::List(mut values) => {
+            values.insert(0, x);
+            Value::List(values)
+        }
+        _ => Value::Pair(Box::new(x), Box::new(y)),
+    }
+}
+
+#[function]
+fn car(pair: Value) -> Result<Value, RuntimeError> {
+    match pair {
+        Value::Pair(x, _) => return Ok(*x),
+        Value::List(values) => {
+            if let Some(value) = values.first() {
+                return Ok(value.clone());
+            }
+        }
+        _ => {}
+    }
+    Err(RuntimeError {
+        message: "Expected a pair".to_string(),
+        span: None,
+    })
+}
+
+#[function]
+fn cdr(pair: Value) -> Result<Value, RuntimeError> {
+    match pair {
+        Value::Pair(_, y) => return Ok(*y),
+        Value::List(values) => {
+            if values.len() > 1 {
+                return Ok(Value::List(values[1..].to_vec()));
+            }
+        }
+        _ => {}
+    }
+    Err(RuntimeError {
+        message: "Expected a pair".to_string(),
+        span: None,
+    })
+}
+
+#[function]
+fn list_q(x: Value) -> bool {
+    matches!(x, Value::List(_))
+}
+
+#[function]
+fn list(values: &[Value]) -> Value {
+    Value::List(values.to_vec())
+}
+
+#[function]
+fn make_list(n: i64, value: Value) -> Value {
+    Value::List(vec![value; n as usize])
+}
+
+#[function]
+fn length(list: Value) -> Result<i64, RuntimeError> {
+    match list {
+        Value::List(values) => Ok(values.len() as i64),
+        Value::Null => Ok(0),
+        _ => Err(RuntimeError {
+            message: "Expected a list".to_string(),
+            span: None,
+        }),
+    }
 }

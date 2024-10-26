@@ -20,6 +20,7 @@ pub enum Value {
     Float(f64),
     String(String),
     Char(char),
+    Pair(Box<Value>, Box<Value>),
     List(Vec<Value>),
     Vector(Vec<Value>),
     Symbol(String),
@@ -44,11 +45,12 @@ impl std::fmt::Display for Value {
             }
             Value::String(s) => write!(f, "\"{}\"", s),
             Value::Char(c) => write!(f, "\\#{}", c),
+            Value::Pair(a, b) => write!(f, "(pair {} {})", a, b),
             Value::List(l) => {
                 write!(f, "(list ")?;
                 for (i, item) in l.iter().enumerate() {
                     if i != 0 {
-                        write!(f, ", ")?;
+                        write!(f, " ")?;
                     }
                     write!(f, "{}", item)?;
                 }
@@ -58,7 +60,7 @@ impl std::fmt::Display for Value {
                 write!(f, "(vector ")?;
                 for (i, item) in v.iter().enumerate() {
                     if i != 0 {
-                        write!(f, ", ")?;
+                        write!(f, " ")?;
                     }
                     write!(f, "{}", item)?;
                 }

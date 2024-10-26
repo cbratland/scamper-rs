@@ -28,7 +28,6 @@ currently only some basic stuff from prelude and the image library is implemente
 - structs
 - `match`, `section`, `o`, `map` etc.
 - quotes
-- lists
 - music functionality
 - code highlighting / parenthesis matching in the web interface
 - error handling on the web interface
