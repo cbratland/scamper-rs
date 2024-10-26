@@ -169,6 +169,20 @@ impl Operation {
         }
     }
 
+    pub fn and(jump_to: Label, span: Span) -> Self {
+        Self {
+            kind: OperationKind::And { jump_to },
+            span,
+        }
+    }
+
+    pub fn or(jump_to: Label, span: Span) -> Self {
+        Self {
+            kind: OperationKind::Or { jump_to },
+            span,
+        }
+    }
+
     pub fn cond(body: Block, end: Label, span: Span) -> Self {
         Self {
             kind: OperationKind::Cond { body, end },

@@ -478,7 +478,8 @@ impl<'a> Parser<'a> {
             keyword::Lambda => self.parse_lambda(args, span),
             keyword::Let => self.parse_let(args, span),
             keyword::LetStar => self.parse_let_star(args, span),
-            // and, or
+            keyword::And => self.parse_and(args, span),
+            keyword::Or => self.parse_or(args, span),
             keyword::If => self.parse_if(args, span),
             // match
             keyword::Cond => self.parse_cond(args, span),
@@ -627,6 +628,44 @@ impl<'a> Parser<'a> {
         Ok((name, self.lower(binding[1].clone())?))
     }
 
+    pub fn parse_and(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        let label = self.fresh_label();
+        Ok(args
+            .iter()
+            .map(|arg| self.lower(arg.clone()))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .flat_map(|ops| {
+                let mut ops = ops;
+                ops.push(Operation::and(label.clone(), span));
+                ops
+            })
+            .chain(vec![
+                Operation::value(Value::Boolean(true), span),
+                Operation::label(label.clone()),
+            ])
+            .collect())
+    }
+
+    pub fn parse_or(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        let label = self.fresh_label();
+        Ok(args
+            .iter()
+            .map(|arg| self.lower(arg.clone()))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .flat_map(|ops| {
+                let mut ops = ops;
+                ops.push(Operation::or(label.clone(), span));
+                ops
+            })
+            .chain(vec![
+                Operation::value(Value::Boolean(false), span),
+                Operation::label(label.clone()),
+            ])
+            .collect())
+    }
+
     pub fn parse_if(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
         if args.len() != 3 {
             return Err(ParseError::new(
@@ -656,7 +695,9 @@ impl<'a> Parser<'a> {
 
         Ok(args
             .iter()
-            .filter_map(|v| self.parse_cond_branch(v).ok())
+            .map(|v| self.parse_cond_branch(v))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
             .flat_map(|(cond, body)| {
                 let mut ops = cond;
                 ops.push(Operation::cond(body, label.clone(), span));

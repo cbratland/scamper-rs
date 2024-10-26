@@ -221,6 +221,52 @@ impl ExecutionStack {
 
                 self.dump_and_switch(Some(new_env), body)?;
             }
+            OperationKind::And { jump_to } => {
+                if self.stack.is_empty() {
+                    return Err(RuntimeError::new(
+                        format!("Missing argument to \"and\" instruction"),
+                        Some(op.span),
+                    ));
+                }
+                let cond = self.stack.pop().unwrap();
+                match cond {
+                    Value::Boolean(b) => {
+                        if !b {
+                            self.stack.push(Value::Boolean(false));
+                            self.jump_to(jump_to)?;
+                        }
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            format!("\"and\" expects a boolean value"),
+                            Some(op.span),
+                        ));
+                    }
+                };
+            }
+            OperationKind::Or { jump_to } => {
+                if self.stack.is_empty() {
+                    return Err(RuntimeError::new(
+                        format!("Missing argument to \"or\" instruction"),
+                        Some(op.span),
+                    ));
+                }
+                let cond = self.stack.pop().unwrap();
+                match cond {
+                    Value::Boolean(b) => {
+                        if b {
+                            self.stack.push(Value::Boolean(true));
+                            self.jump_to(jump_to)?;
+                        }
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            format!("\"or\" expects a boolean value"),
+                            Some(op.span),
+                        ));
+                    }
+                };
+            }
             OperationKind::Cond { body, end } => {
                 if self.stack.is_empty() {
                     return Err(RuntimeError::new(
@@ -246,6 +292,30 @@ impl ExecutionStack {
             }
             OperationKind::Label { .. } => {
                 // do nothing
+            }
+            OperationKind::Exception {
+                message,
+                mod_name,
+                span,
+                source,
+            } => {
+                return Err(RuntimeError::new(
+                    format!(
+                        "{}{}{}",
+                        if let Some(mod_name) = mod_name {
+                            format!("[{mod_name}] ")
+                        } else {
+                            String::default()
+                        },
+                        if let Some(source) = source {
+                            format!("{}: ", source)
+                        } else {
+                            String::default()
+                        },
+                        message,
+                    ),
+                    span,
+                ));
             }
             _ => todo!(),
         }
