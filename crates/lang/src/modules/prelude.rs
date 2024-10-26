@@ -1,3 +1,5 @@
+use core::f64;
+
 use scamper_macros::function;
 
 use crate::{
@@ -33,6 +35,13 @@ pub fn add_to(env: &mut Env) {
     env.register("quotient", quotient);
     env.register("remainder", remainder);
     env.register("modulo", modulo);
+
+    // additional constants
+    env.register_value("else", true);
+    env.register_value("null", Value::Null);
+    env.register_value("pi", f64::consts::PI);
+    env.register_value("π", f64::consts::PI);
+    // todo: void
 }
 
 #[function]

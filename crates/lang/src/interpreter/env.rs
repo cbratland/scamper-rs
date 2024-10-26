@@ -1,5 +1,5 @@
 use super::RuntimeError;
-use crate::ast::{NativeFn, Value};
+use crate::ast::{IntoValue, NativeFn, Value};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -37,13 +37,17 @@ impl Env {
         self.bindings.insert(key.clone(), value);
     }
 
-    pub fn register(
-        &mut self,
-        name: &'static str,
-        func: fn(&[Value]) -> Result<Value, RuntimeError>,
-    ) {
+    pub fn register(&mut self, name: &str, func: fn(&[Value]) -> Result<Value, RuntimeError>) {
         self.bindings
             .insert(name.to_string(), Value::Function(NativeFn(func)));
+    }
+
+    pub fn register_value<T: IntoValue>(&mut self, name: &str, value: T) -> bool {
+        let Some(value) = value.into_value() else {
+            return false;
+        };
+        self.bindings.insert(name.to_string(), value);
+        return true;
     }
 }
 

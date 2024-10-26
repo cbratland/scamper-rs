@@ -76,6 +76,34 @@ impl ExecutionStack {
         Ok(())
     }
 
+    fn jump_to(&mut self, label: String) -> Result<()> {
+        self.current_op += 1;
+        let mut cur = self.ops.next();
+
+        while let Some(op) = cur {
+            match op.kind {
+                OperationKind::Label { name } if name == label => {
+                    return Ok(());
+                }
+                _ => {
+                    self.current_op += 1;
+                    cur = self.ops.next();
+                }
+            }
+        }
+
+        Err(RuntimeError::new(
+            format!("Label `{}` not found", label),
+            None,
+        ))
+    }
+
+    fn jump_past(&mut self, label: String) -> Result<()> {
+        self.jump_to(label)?;
+        self.current_op += 1;
+        Ok(())
+    }
+
     fn step(&mut self) -> Result<()> {
         self.current_op += 1;
         let Some(op) = self.ops.next() else {
@@ -192,6 +220,32 @@ impl ExecutionStack {
                 }
 
                 self.dump_and_switch(Some(new_env), body)?;
+            }
+            OperationKind::Cond { body, end } => {
+                if self.stack.is_empty() {
+                    return Err(RuntimeError::new(
+                        "missing guard to \"cond\" instruction".to_string(),
+                        Some(op.span),
+                    ));
+                }
+                let cond = self.stack.pop().unwrap();
+                match cond {
+                    Value::Boolean(b) => {
+                        if b {
+                            self.jump_past(end)?;
+                            self.dump_and_switch(None, body)?;
+                        }
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "boolean expected in conditional".to_string(),
+                            Some(op.span),
+                        ));
+                    }
+                };
+            }
+            OperationKind::Label { .. } => {
+                // do nothing
             }
             _ => todo!(),
         }

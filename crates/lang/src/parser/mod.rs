@@ -68,6 +68,7 @@ pub struct Parser<'a> {
     pub token: Token, // current token
     pub prev_token: Token,
     pub stream: TokenStream,
+    pub label_counter: u32,
 }
 
 impl<'a> Parser<'a> {
@@ -79,6 +80,7 @@ impl<'a> Parser<'a> {
             token: stream.next(),
             prev_token: Token::new(TokenKind::Eof, 0, 0),
             stream,
+            label_counter: 0,
         }
     }
 
@@ -90,6 +92,7 @@ impl<'a> Parser<'a> {
             token: stream.next(),
             prev_token: Token::new(TokenKind::Eof, 0, 0),
             stream,
+            label_counter: 0,
         })
     }
 
@@ -159,6 +162,12 @@ impl<'a> Parser<'a> {
     //         Err(ParseError::expected_keyword(keyword, self.token.span))
     //     }
     // }
+
+    pub fn fresh_label(&mut self) -> String {
+        let label = format!("lbl_{}", self.label_counter);
+        self.label_counter += 1;
+        label
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -469,7 +478,10 @@ impl<'a> Parser<'a> {
             keyword::Lambda => self.parse_lambda(args, span),
             keyword::Let => self.parse_let(args, span),
             keyword::LetStar => self.parse_let_star(args, span),
+            // and, or
             keyword::If => self.parse_if(args, span),
+            // match
+            keyword::Cond => self.parse_cond(args, span),
             _ => todo!(),
         }
     }
@@ -630,6 +642,61 @@ impl<'a> Parser<'a> {
             span,
         ));
         Ok(ops)
+    }
+
+    pub fn parse_cond(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        if args.len() < 1 {
+            return Err(ParseError::new(
+                "cond expression must have at least one branch",
+                Some(span),
+            ));
+        }
+
+        let label = self.fresh_label();
+
+        Ok(args
+            .iter()
+            .filter_map(|v| self.parse_cond_branch(v).ok())
+            .flat_map(|(cond, body)| {
+                let mut ops = cond;
+                ops.push(Operation::cond(body, label.clone(), span));
+                ops
+            })
+            .chain(vec![
+                Operation::exception(
+                    "No branches of \"cond\" expression matched".into(),
+                    None,
+                    Some(span),
+                    None,
+                ),
+                Operation::label(label.clone()),
+            ])
+            .collect())
+    }
+
+    // returns the condition and body operations
+    fn parse_cond_branch(
+        &mut self,
+        value: &ParserValue,
+    ) -> Result<(Vec<Operation>, Vec<Operation>)> {
+        let ParserValueKind::Vector(branch) = &value.kind else {
+            return Err(ParseError::new(
+                "cond branch must be given as a vector",
+                Some(value.span),
+            ));
+        };
+
+        if branch.len() != 2 {
+            return Err(ParseError::new(
+                "cond branch must be a pair of expressions",
+                Some(value.span),
+            ));
+        }
+
+        Ok((
+            self.lower(branch[0].clone())?,
+            self.lower(branch[1].clone())?,
+        ))
     }
 }
 

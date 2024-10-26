@@ -161,6 +161,37 @@ impl Operation {
             span,
         }
     }
+
+    pub fn label(name: String) -> Self {
+        Self {
+            kind: OperationKind::Label { name },
+            span: Span { loc: 0, len: 0 },
+        }
+    }
+
+    pub fn cond(body: Block, end: Label, span: Span) -> Self {
+        Self {
+            kind: OperationKind::Cond { body, end },
+            span,
+        }
+    }
+
+    pub fn exception(
+        message: String,
+        mod_name: Option<String>,
+        span: Option<Span>,
+        source: Option<String>,
+    ) -> Self {
+        Self {
+            kind: OperationKind::Exception {
+                message,
+                mod_name,
+                span,
+                source,
+            },
+            span: Span { loc: 0, len: 0 },
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
