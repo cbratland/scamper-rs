@@ -10,8 +10,18 @@ impl Number {
         Number(value, value.fract() != 0.0)
     }
 
+    pub fn as_f64(self) -> f64 {
+        self.into()
+    }
+
     pub fn abs(self) -> Self {
         Number(self.0.abs(), self.1)
+    }
+}
+
+impl std::fmt::Display for Number {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

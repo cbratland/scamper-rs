@@ -1,15 +1,29 @@
 use super::Block;
-use crate::interpreter::RuntimeError;
-use std::{any::Any, fmt::Debug, rc::Rc};
+use crate::interpreter::{Env, RuntimeError};
+use std::{any::Any, cell::RefCell, fmt::Debug, rc::Rc};
 
-type NativeFnSignature = fn(&[Value]) -> Result<Value, RuntimeError>;
+mod function;
+mod list;
+mod number;
+pub use function::Function;
+pub use list::{List, Vector};
+pub use number::Number;
 
-#[derive(Clone, PartialEq)]
+pub type NativeFnSignature = fn(&[Value]) -> Result<Value, RuntimeError>;
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct NativeFn(pub NativeFnSignature);
 
-impl std::fmt::Debug for NativeFn {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<NativeFn>")
+#[derive(Debug, Clone)]
+pub struct Closure {
+    pub params: Vec<String>,
+    pub body: Block,
+    pub env: Option<Rc<RefCell<Env>>>,
+}
+
+impl PartialEq for Closure {
+    fn eq(&self, other: &Self) -> bool {
+        self.params == other.params && self.body == other.body
     }
 }
 
@@ -24,11 +38,26 @@ pub enum Value {
     List(Vec<Value>),
     Vector(Vec<Value>),
     Symbol(String),
-    Closure { params: Vec<String>, body: Block },
+    Closure(Closure),
     // rust function
     Function(NativeFn),
     Foreign(Rc<dyn Any>),
     Null,
+    Void,
+}
+
+impl Value {
+    pub fn truthy(&self) -> bool {
+        match self {
+            Value::Boolean(b) => *b,
+            Value::Integer(i) => *i != 0,
+            Value::Float(f) => *f != 0.0,
+            Value::String(s) => !s.is_empty(),
+            Value::Null => false,
+            Value::Void => false,
+            _ => true,
+        }
+    }
 }
 
 impl std::fmt::Display for Value {
@@ -67,12 +96,13 @@ impl std::fmt::Display for Value {
                 write!(f, ")")
             }
             Value::Symbol(s) => write!(f, "{}", s),
-            Value::Closure { params, .. } => {
-                write!(f, "(lambda ({}) <body>)", params.join(", "))
+            Value::Closure(c) => {
+                write!(f, "(lambda ({}) <body>)", c.params.join(" "))
             }
             Value::Function(_) => write!(f, "<function>"),
             Value::Foreign(_) => write!(f, "<foreign>"),
             Value::Null => write!(f, "null"),
+            Value::Void => write!(f, "void"),
         }
     }
 }
@@ -90,9 +120,7 @@ impl PartialEq for Value {
             (Value::List(a), Value::List(b)) => *a == *b,
             (Value::Vector(a), Value::Vector(b)) => *a == *b,
             (Value::Symbol(a), Value::Symbol(b)) => *a == *b,
-            (Value::Closure { params: a, body: x }, Value::Closure { params: b, body: y }) => {
-                a == b && x == y
-            }
+            (Value::Closure(a), Value::Closure(b)) => *a == *b,
             (Value::Function(a), Value::Function(b)) => *a == *b,
             (Value::Null, Value::Null) => true,
             (Value::List(a), Value::Null) => a.is_empty(),
@@ -197,5 +225,20 @@ impl IntoValue for String {
 impl IntoValue for &str {
     fn into_value(self) -> Option<Value> {
         Some(Value::String(String::from(self)))
+    }
+}
+
+impl FromValue for char {
+    fn from_value(value: &Value) -> Option<Self> {
+        match value {
+            Value::Char(c) => Some(*c),
+            _ => None,
+        }
+    }
+}
+
+impl IntoValue for char {
+    fn into_value(self) -> Option<Value> {
+        Some(Value::Char(self))
     }
 }

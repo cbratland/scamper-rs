@@ -23,10 +23,10 @@ but you might need to set up [leptos](https://leptos.dev) and trunk first (the l
 
 ## missing stuff
 
-currently only some basic stuff from prelude and the image library is implemented. some big things that are missing:
+currently only prelude and some stuff from the image library is implemented. some big things that are missing:
 
 - structs
-- `match`, `section`, `o`, `map` etc.
+- `match`, `section`, etc.
 - quotes
 - music functionality
 - code highlighting / parenthesis matching in the web interface

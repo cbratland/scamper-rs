@@ -51,6 +51,10 @@ impl ExecutionStack {
         }
         Ok(())
     }
+
+    pub fn pop(&mut self) -> Option<Value> {
+        self.stack.pop()
+    }
 }
 
 impl ExecutionStack {
@@ -135,28 +139,7 @@ impl ExecutionStack {
                 let func = self.stack.pop().unwrap();
 
                 match func {
-                    Value::Closure { params, body } => {
-                        if params.len() != args.len() {
-                            return Err(RuntimeError::new(
-                                format!(
-                                    "Function expected {} arguments, passed {} instead",
-                                    params.len(),
-                                    args.len()
-                                ),
-                                Some(op.span),
-                            ));
-                        }
-
-                        let new_env = Rc::new((*self.env).clone());
-                        {
-                            let mut new_env = new_env.borrow_mut();
-                            for (key, value) in params.iter().zip(args.iter()) {
-                                new_env.set(key.clone(), value.clone());
-                            }
-                        }
-
-                        self.dump_and_switch(Some(new_env), body)?;
-                    }
+                    Value::Closure(closure) => self.eval_closure(closure, args, op.span)?,
                     Value::Function(function) => {
                         let result = function.0(&args)?;
                         self.stack.push(result);
@@ -170,7 +153,11 @@ impl ExecutionStack {
                 }
             }
             OperationKind::Closure { params, body } => {
-                let value = Value::Closure { params, body };
+                let value = Value::Closure(Closure {
+                    params,
+                    body,
+                    env: Some(self.env.clone()),
+                });
                 self.stack.push(value);
             }
             OperationKind::If {
@@ -319,6 +306,31 @@ impl ExecutionStack {
             }
             _ => todo!(),
         }
+        Ok(())
+    }
+
+    fn eval_closure(&mut self, closure: Closure, args: Vec<Value>, span: Span) -> Result<()> {
+        if closure.params.len() != args.len() {
+            return Err(RuntimeError::new(
+                format!(
+                    "Function expected {} arguments, passed {} instead",
+                    closure.params.len(),
+                    args.len()
+                ),
+                Some(span),
+            ));
+        }
+
+        let new_env = Rc::new((*self.env).clone());
+        {
+            let mut new_env = new_env.borrow_mut();
+            for (key, value) in closure.params.iter().zip(args.iter()) {
+                new_env.set(key.clone(), value.clone());
+            }
+        }
+
+        self.dump_and_switch(Some(new_env), closure.body)?;
+
         Ok(())
     }
 }
