@@ -4,6 +4,7 @@ use std::vec::IntoIter;
 
 use super::{Env, RuntimeError};
 use crate::ast::*;
+use crate::parser::keyword::RESERVED_WORDS;
 
 type Result<T> = std::result::Result<T, RuntimeError>;
 
@@ -124,7 +125,7 @@ impl ExecutionStack {
                 self.stack.push(value);
             }
             OperationKind::Variable { name } => {
-                // todo: assert the name is not reserved
+                assert_not_reserved(&name)?;
                 if let Some(value) = self.env.borrow().get(&name) {
                     self.stack.push(value.clone());
                 } else {
@@ -195,7 +196,9 @@ impl ExecutionStack {
                 };
             }
             OperationKind::Let { names, body } => {
-                // todo: assert names aren't reserved?
+                for name in &names {
+                    assert_not_reserved(&name)?;
+                }
                 if self.stack.len() < names.len() {
                     return Err(RuntimeError::new(
                         format!("Not enough values on stack for let binding"),
@@ -218,7 +221,7 @@ impl ExecutionStack {
                 let scutinee = self.stack.pop().unwrap();
                 let mut found_match = false;
                 for branch in branches {
-                    let bindings = self.try_match(&branch.0, &scutinee);
+                    let bindings = self.try_match(&branch.0, &scutinee)?;
                     if let Some(bindings) = bindings {
                         let new_env = self.extend_env(bindings);
                         self.dump_and_switch(Some(new_env), branch.1)?;
@@ -353,14 +356,15 @@ impl ExecutionStack {
     }
 
     // returns None if the pattern does not match the value
-    fn try_match(&self, pattern: &Value, value: &Value) -> Option<Vec<(String, Value)>> {
-        let matches = Some(Vec::new());
+    fn try_match(&self, pattern: &Value, value: &Value) -> Result<Option<Vec<(String, Value)>>> {
+        let matches = Ok(Some(Vec::new()));
         match (pattern, value) {
             (Value::Symbol(s), v) => {
                 if s == "_" {
                     matches
                 } else {
-                    Some(vec![(s.clone(), v.clone())])
+                    assert_not_reserved(&s)?;
+                    Ok(Some(vec![(s.clone(), v.clone())]))
                 }
             }
             (Value::List(p), Value::List(v)) => self.match_lists(p, v),
@@ -372,16 +376,16 @@ impl ExecutionStack {
                 if pattern == value {
                     matches
                 } else {
-                    None
+                    Ok(None)
                 }
             }
         }
     }
 
-    fn match_lists(&self, p: &Vec<Value>, v: &Vec<Value>) -> Option<Vec<(String, Value)>> {
+    fn match_lists(&self, p: &Vec<Value>, v: &Vec<Value>) -> Result<Option<Vec<(String, Value)>>> {
         // todo: what is this?
         if p.is_empty() || v.is_empty() {
-            return None;
+            return Ok(None);
         }
 
         let head = p.first().unwrap();
@@ -389,10 +393,10 @@ impl ExecutionStack {
 
         if let Value::Symbol(sym) = head {
             if sym == "pair" || sym == "cons" && args.len() == 2 {
-                let env1 = self.try_match(args[0], v.first().unwrap());
+                let env1 = self.try_match(args[0], v.first().unwrap())?;
                 let v_values = v.iter().skip(1).collect::<Vec<&Value>>();
                 let env2 = if v_values.len() == 1 {
-                    self.try_match(args[1], v_values.first().unwrap())
+                    self.try_match(args[1], v_values.first().unwrap())?
                 } else {
                     self.try_match(
                         args[1],
@@ -402,20 +406,20 @@ impl ExecutionStack {
                                 .map(|i| i.clone())
                                 .collect::<Vec<Value>>(),
                         ),
-                    )
+                    )?
                 };
                 if let (Some(env1), Some(env2)) = (env1, env2) {
                     let mut env = env1;
                     env.extend(env2);
-                    Some(env)
+                    Ok(Some(env))
                 } else {
-                    None
+                    Ok(None)
                 }
             } else {
-                return None;
+                Ok(None)
             }
         } else {
-            return None;
+            Ok(None)
         }
     }
 
@@ -502,6 +506,7 @@ impl Runner {
 
 impl Runner {
     fn step_define(&self, name: String, body: Block) -> Result<()> {
+        assert_not_reserved(&name)?;
         let mut interpreter = ExecutionStack::new(Rc::clone(&self.env), body);
         _ = interpreter.run()?;
 
@@ -554,5 +559,19 @@ impl Runner {
             }
             Err(e) => self.output.push(Output::Error(e)),
         }
+    }
+}
+
+fn assert_not_reserved(identifier: &str) -> Result<()> {
+    if RESERVED_WORDS.contains(&identifier) {
+        Err(RuntimeError::new(
+            format!(
+                "\"{}\" is a reserved word and cannot be used as an identifier",
+                identifier
+            ),
+            None,
+        ))
+    } else {
+        Ok(())
     }
 }
