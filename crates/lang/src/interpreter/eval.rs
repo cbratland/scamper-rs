@@ -211,6 +211,28 @@ impl ExecutionStack {
                 let new_env = self.extend_env(names.into_iter().zip(values.into_iter()));
                 self.dump_and_switch(Some(new_env), body)?;
             }
+            OperationKind::Sequence { subexpr_count } => {
+                self.stack = self
+                    .stack
+                    .split_off(self.stack.len() - subexpr_count as usize);
+
+                if self.stack.len() < subexpr_count as usize {
+                    return Err(RuntimeError::new(
+                        format!(
+                            "Not enough values on stack for sequence: {} expected, {} found",
+                            subexpr_count,
+                            self.stack.len()
+                        ),
+                        Some(op.span),
+                    ));
+                }
+
+                let ret = self.stack.pop().unwrap();
+                for _ in 1..subexpr_count {
+                    self.stack.pop();
+                }
+                self.stack.push(ret);
+            }
             OperationKind::Match { branches } => {
                 if self.stack.is_empty() {
                     return Err(RuntimeError::new(
@@ -332,7 +354,6 @@ impl ExecutionStack {
                     span,
                 ));
             }
-            _ => todo!(),
         }
         Ok(())
     }

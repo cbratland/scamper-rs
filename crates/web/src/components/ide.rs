@@ -44,12 +44,16 @@ pub fn Ide() -> impl IntoView {
 
     // update stored input code when input changes
     let on_change = move |txt: Option<String>| {
-        let p = SpecialNonReactiveZone::enter();
+        #[cfg(debug_assertions)]
+        let prev = SpecialNonReactiveZone::enter();
+
         set_input.set(txt.clone().unwrap_or_default());
         if !output.get().is_empty() {
             set_dirty.set(true);
         }
-        SpecialNonReactiveZone::exit(p);
+
+        #[cfg(debug_assertions)]
+        SpecialNonReactiveZone::exit(prev);
     };
 
     // handle run button click

@@ -478,8 +478,11 @@ impl<'a> Parser<'a> {
             keyword::And => self.parse_and(args, span),
             keyword::Or => self.parse_or(args, span),
             keyword::If => self.parse_if(args, span),
+            keyword::Begin => self.parse_begin(args, span),
             keyword::Match => self.parse_match(args, span),
             keyword::Cond => self.parse_cond(args, span),
+            // keyword::Quote => self.parse_quote(args, span),
+            // keyword::Section => self.parse_section(args, span),
             _ => todo!(),
         }
     }
@@ -677,6 +680,25 @@ impl<'a> Parser<'a> {
             self.lower(args[2].clone())?,
             span,
         ));
+        Ok(ops)
+    }
+
+    pub fn parse_begin(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        if args.is_empty() {
+            return Err(ParseError::new(
+                "begin expression must have at least 1 sub-expression",
+                Some(span),
+            ));
+        }
+
+        let mut ops = args
+            .iter()
+            .map(|arg| self.lower(arg.clone()))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .flat_map(|ops| ops)
+            .collect::<Vec<_>>();
+        ops.push(Operation::seq(args.len(), span));
         Ok(ops)
     }
 

@@ -84,9 +84,8 @@ pub enum OperationKind {
         names: Vec<String>,
         body: Block,
     },
-    // music related
     Sequence {
-        subexpr_count: i32,
+        subexpr_count: usize,
     },
     Match {
         branches: Vec<MatchBranch>,
@@ -181,6 +180,13 @@ impl Operation {
     pub fn or(jump_to: Label, span: Span) -> Self {
         Self {
             kind: OperationKind::Or { jump_to },
+            span,
+        }
+    }
+
+    pub fn seq(subexpr_count: usize, span: Span) -> Self {
+        Self {
+            kind: OperationKind::Sequence { subexpr_count },
             span,
         }
     }
