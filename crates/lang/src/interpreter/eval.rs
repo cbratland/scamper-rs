@@ -205,15 +205,33 @@ impl ExecutionStack {
 
                 let values = self.stack.split_off(self.stack.len() - names.len());
 
-                let new_env = Rc::new((*self.env).clone());
-                {
-                    let mut new_env = new_env.borrow_mut();
-                    for (name, value) in names.iter().zip(values.iter()) {
-                        new_env.set(name.clone(), value.clone());
+                let new_env = self.extend_env(names.into_iter().zip(values.into_iter()));
+                self.dump_and_switch(Some(new_env), body)?;
+            }
+            OperationKind::Match { branches } => {
+                if self.stack.is_empty() {
+                    return Err(RuntimeError::new(
+                        format!("Scrutinee missing from stack for match"),
+                        Some(op.span),
+                    ));
+                }
+                let scutinee = self.stack.pop().unwrap();
+                let mut found_match = false;
+                for branch in branches {
+                    let bindings = self.try_match(&branch.0, &scutinee);
+                    if let Some(bindings) = bindings {
+                        let new_env = self.extend_env(bindings);
+                        self.dump_and_switch(Some(new_env), branch.1)?;
+                        found_match = true;
+                        break;
                     }
                 }
-
-                self.dump_and_switch(Some(new_env), body)?;
+                if !found_match {
+                    return Err(RuntimeError::new(
+                        format!("No pattern matches for {}", scutinee),
+                        Some(op.span),
+                    ));
+                }
             }
             OperationKind::And { jump_to } => {
                 if self.stack.is_empty() {
@@ -328,17 +346,88 @@ impl ExecutionStack {
             ));
         }
 
-        let new_env = Rc::new((*self.env).clone());
-        {
-            let mut new_env = new_env.borrow_mut();
-            for (key, value) in closure.params.iter().zip(args.iter()) {
-                new_env.set(key.clone(), value.clone());
-            }
-        }
-
+        let new_env = self.extend_env(closure.params.into_iter().zip(args.into_iter()));
         self.dump_and_switch(Some(new_env), closure.body)?;
 
         Ok(())
+    }
+
+    // returns None if the pattern does not match the value
+    fn try_match(&self, pattern: &Value, value: &Value) -> Option<Vec<(String, Value)>> {
+        let matches = Some(Vec::new());
+        match (pattern, value) {
+            (Value::Symbol(s), v) => {
+                if s == "_" {
+                    matches
+                } else {
+                    Some(vec![(s.clone(), v.clone())])
+                }
+            }
+            (Value::List(p), Value::List(v)) => self.match_lists(p, v),
+            (Value::List(p), Value::Pair(vx, vy)) => {
+                self.match_lists(p, &vec![*vx.clone(), *vy.clone()])
+            }
+            // (Value::List(p), Value::Struct(v)) => todo!(),
+            _ => {
+                if pattern == value {
+                    matches
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn match_lists(&self, p: &Vec<Value>, v: &Vec<Value>) -> Option<Vec<(String, Value)>> {
+        // todo: what is this?
+        if p.is_empty() || v.is_empty() {
+            return None;
+        }
+
+        let head = p.first().unwrap();
+        let args = p.iter().skip(1).collect::<Vec<&Value>>();
+
+        if let Value::Symbol(sym) = head {
+            if sym == "pair" || sym == "cons" && args.len() == 2 {
+                let env1 = self.try_match(args[0], v.first().unwrap());
+                let v_values = v.iter().skip(1).collect::<Vec<&Value>>();
+                let env2 = if v_values.len() == 1 {
+                    self.try_match(args[1], v_values.first().unwrap())
+                } else {
+                    self.try_match(
+                        args[1],
+                        &Value::List(
+                            v_values
+                                .into_iter()
+                                .map(|i| i.clone())
+                                .collect::<Vec<Value>>(),
+                        ),
+                    )
+                };
+                if let (Some(env1), Some(env2)) = (env1, env2) {
+                    let mut env = env1;
+                    env.extend(env2);
+                    Some(env)
+                } else {
+                    None
+                }
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    }
+
+    fn extend_env(&self, bindings: impl IntoIterator<Item = (String, Value)>) -> Rc<RefCell<Env>> {
+        let new_env = Rc::new((*self.env).clone());
+        {
+            let mut new_env = new_env.borrow_mut();
+            for (name, value) in bindings.into_iter() {
+                new_env.set(name.clone(), value.clone());
+            }
+        }
+        new_env
     }
 }
 

@@ -25,8 +25,8 @@ but you might need to set up [leptos](https://leptos.dev) and trunk first (the l
 currently only prelude and some stuff from the image library is implemented. some big things that are missing:
 
 - structs
-- `match`
 - `section`
 - quotes
 - music functionality
 - the debugging features of the original scamper
+- all the other scamper built in libraries

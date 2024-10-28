@@ -10,9 +10,8 @@ pub const Or: &str = "or";
 pub const Let: &str = "let";
 pub const LetStar: &str = "let*";
 pub const Match: &str = "match";
-
 pub const Lambda: &str = "lambda";
 pub const Begin: &str = "begin";
 pub const Cond: &str = "cond";
 pub const Quote: &str = "quote";
-pub const Section: &str = "quote";
+pub const Section: &str = "section";

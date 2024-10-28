@@ -58,6 +58,7 @@ impl Span {
 
 pub type Block = Vec<Operation>;
 pub type Label = String;
+pub type MatchBranch = (Value, Block);
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum OperationKind {
@@ -87,7 +88,9 @@ pub enum OperationKind {
     Sequence {
         subexpr_count: i32,
     },
-    Match,
+    Match {
+        branches: Vec<MatchBranch>,
+    },
     And {
         jump_to: Label,
     },
@@ -178,6 +181,13 @@ impl Operation {
     pub fn or(jump_to: Label, span: Span) -> Self {
         Self {
             kind: OperationKind::Or { jump_to },
+            span,
+        }
+    }
+
+    pub fn match_(branches: Vec<MatchBranch>, span: Span) -> Self {
+        Self {
+            kind: OperationKind::Match { branches },
             span,
         }
     }

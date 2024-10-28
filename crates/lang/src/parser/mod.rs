@@ -269,7 +269,7 @@ impl<'a> Parser<'a> {
             todo!()
         } else {
             // parse single
-            self.parse_single(false)
+            self.parse_single(true)
         }
     }
 
@@ -478,7 +478,7 @@ impl<'a> Parser<'a> {
             keyword::And => self.parse_and(args, span),
             keyword::Or => self.parse_or(args, span),
             keyword::If => self.parse_if(args, span),
-            // match
+            keyword::Match => self.parse_match(args, span),
             keyword::Cond => self.parse_cond(args, span),
             _ => todo!(),
         }
@@ -678,6 +678,42 @@ impl<'a> Parser<'a> {
             span,
         ));
         Ok(ops)
+    }
+
+    pub fn parse_match(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        if args.len() < 2 {
+            return Err(ParseError::new(
+				"match expression must have at least two sub-expressions: a scrutinee at least one branch",
+				Some(self.token.span),
+			));
+        }
+
+        let scrutinee = self.lower(args[0].clone())?;
+        let branches = args
+            .iter()
+            .skip(1)
+            .map(|v| self.parse_match_branch(v))
+            .collect::<Result<Vec<_>>>()?;
+
+        let mut ops = scrutinee;
+        ops.push(Operation::match_(branches, span));
+        Ok(ops)
+    }
+
+    fn parse_match_branch(&mut self, value: &ParserValue) -> Result<MatchBranch> {
+        let ParserValueKind::Vector(branch) = &value.kind else {
+            return Err(ParseError::new(
+                "match branch must be given as a vector",
+                Some(value.span),
+            ));
+        };
+        if branch.len() != 2 {
+            return Err(ParseError::new(
+                "match branches must be given as a pair of a pattern and an expression",
+                Some(value.span),
+            ));
+        }
+        Ok((branch[0].clone().into(), self.lower(branch[1].clone())?))
     }
 
     pub fn parse_cond(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {

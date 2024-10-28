@@ -39,8 +39,7 @@ pub enum Value {
     Vector(Vec<Value>),
     Symbol(String),
     Closure(Closure),
-    // rust function
-    Function(NativeFn),
+    Function(NativeFn), // rust function
     Foreign(Rc<dyn Any>),
     Null,
     Void,
@@ -124,7 +123,9 @@ impl PartialEq for Value {
             (Value::Function(a), Value::Function(b)) => *a == *b,
             (Value::Null, Value::Null) => true,
             (Value::List(a), Value::Null) => a.is_empty(),
+            (Value::Foreign(a), Value::Foreign(b)) => Rc::ptr_eq(a, b),
             (Value::Null, Value::List(b)) => b.is_empty(),
+            (Value::Void, Value::Void) => true,
             _ => false,
         }
     }
