@@ -420,8 +420,7 @@ impl<'a> Parser<'a> {
                             return Err(ParseError::new("display statements must have 1 argument, the expression to display", Some(value.span)));
                         }
                         let span = value.span;
-                        // todo: is this right?
-                        return Ok(Some(Statement::display(self.lower(value)?, span)));
+                        return Ok(Some(Statement::display(self.lower(args[0].clone())?, span)));
                     }
                     keyword::Struct => todo!(),
                     _ => {}
