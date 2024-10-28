@@ -1,6 +1,6 @@
 # scamper-rs
 
-implementation of [scamper](https://github.com/slag-plt/scamper) (lisp) in rust. try it: [https://cbratland.github.io/scamper-rs/](https://cbratland.github.io/scamper-rs/).
+implementation of [scamper](https://github.com/slag-plt/scamper) (scheme) in rust. try it: [https://cbratland.github.io/scamper-rs/](https://cbratland.github.io/scamper-rs/).
 
 made for fun and not up to spec with the original scamper.
 
@@ -25,8 +25,8 @@ but you might need to set up [leptos](https://leptos.dev) and trunk first (the l
 currently only prelude and some stuff from the image library is implemented. some big things that are missing:
 
 - structs
-- `match`, `section`, etc.
+- `match`
+- `section`
 - quotes
 - music functionality
-- inline error handling on the web interface
 - the debugging features of the original scamper

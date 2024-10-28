@@ -1,6 +1,8 @@
 import { basicSetup } from "codemirror";
 import { indentWithTab } from "@codemirror/commands";
 import { EditorView, keymap } from "@codemirror/view";
+import { linter } from "@codemirror/lint";
+import type { Diagnostic } from "@codemirror/lint";
 import { ScamperSupport } from "./codemirror/language.js";
 import Split from "split.js";
 
@@ -15,6 +17,7 @@ export function createEditor(
 	doc: string,
 	parent: HTMLElement,
 	onUpdate: (view: EditorView) => void,
+	onLinting: (view: EditorView) => Diagnostic[],
 ): EditorView {
 	// const debounce = debouncer({ onUpdate, onUpdating });
 	const update = EditorView.updateListener.of((update) => {
@@ -30,6 +33,7 @@ export function createEditor(
 			basicSetup,
 			keymap.of([indentWithTab]),
 			ScamperSupport(),
+			linter((view) => onLinting(view)),
 			update,
 		],
 	});
@@ -49,6 +53,20 @@ export function createEditor(
 	};
 
 	return view;
+}
+
+export function createDiagnostic(
+	from: number,
+	to: number,
+	severity: "error" | "warning" | "info",
+	message: string,
+): Diagnostic {
+	return {
+		from,
+		to,
+		severity: severity,
+		message: message,
+	};
 }
 
 export function createSplit(elements: HTMLElement[], sizes: number[]): void {

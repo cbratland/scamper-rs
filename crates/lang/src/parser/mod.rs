@@ -488,7 +488,7 @@ impl<'a> Parser<'a> {
         if args.len() != 2 {
             return Err(ParseError::new(
                 "lambda expression must have 2 sub-components: a parameter list and a body",
-                Some(self.token.span),
+                Some(span),
             ));
         }
 

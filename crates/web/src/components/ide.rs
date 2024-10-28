@@ -2,6 +2,7 @@ use super::{CodeMirror, RenderedValue, ValueOrError};
 use crate::bindings::create_split;
 use crate::VERSION;
 use html::Div;
+use leptos::SpecialNonReactiveZone;
 use leptos::*;
 use scamper_rs::{interpreter::Output, Engine};
 use web_sys::HtmlElement;
@@ -18,9 +19,10 @@ pub fn Ide() -> impl IntoView {
         .local_storage()
         .ok()
         .flatten()
-        .and_then(|storage| storage.get_item(STORAGE_KEY).ok().flatten());
-    let input = RwSignal::new(starting_input);
-    let output = RwSignal::new(Vec::new());
+        .and_then(|storage| storage.get_item(STORAGE_KEY).ok().flatten())
+        .unwrap_or_default();
+    let (input, set_input) = create_signal(starting_input.clone());
+    let output = create_rw_signal(Vec::new());
 
     let editor = create_node_ref::<Div>();
     let results = create_node_ref::<Div>();
@@ -41,38 +43,39 @@ pub fn Ide() -> impl IntoView {
     });
 
     // update stored input code when input changes
-    let on_change = Callback::new(move |txt: Option<String>| {
-        input.set(txt.clone());
+    let on_change = move |txt: Option<String>| {
+        let p = SpecialNonReactiveZone::enter();
+        set_input.set(txt.clone().unwrap_or_default());
         if !output.get().is_empty() {
             set_dirty.set(true);
         }
-    });
+        SpecialNonReactiveZone::exit(p);
+    };
 
     // handle run button click
     let run_click = move |_| {
-        if let Some(code) = input.get() {
-            let engine = Engine::new();
+        let code = input.get();
+        let engine = Engine::new();
 
-            let values = match engine.run(&code) {
-                Ok(values) => values
-                    .into_iter()
-                    .map(|v| match v {
-                        Output::Value(v) => ValueOrError::Value(v),
-                        Output::Error(err) => ValueOrError::Error(err.emit_to_string(&code)),
-                    })
-                    .collect(),
-                Err(err) => vec![ValueOrError::Error(err.emit_to_web_string(&code))],
-            };
-
-            output.set(values);
-            set_dirty.set(false);
+        let values = match engine.run(&code) {
+            Ok(values) => values
+                .into_iter()
+                .map(|v| match v {
+                    Output::Value(v) => ValueOrError::Value(v),
+                    Output::Error(err) => ValueOrError::Error(err.emit_to_string(&code)),
+                })
+                .collect(),
+            Err(err) => vec![ValueOrError::Error(err.emit_to_web_string(&code))],
         };
+
+        output.set(values);
+        set_dirty.set(false);
     };
 
     // save code to local storage
     create_effect(move |_| {
         if let Ok(Some(storage)) = window().local_storage() {
-            let code = input.get().unwrap_or_default();
+            let code = input.get();
             if storage.set_item(STORAGE_KEY, &code).is_err() {
                 logging::error!("error while trying to set item in localStorage");
             }
@@ -106,7 +109,7 @@ pub fn Ide() -> impl IntoView {
             </div>
             <div id="content">
                 <CodeMirror
-                    input=input.into()
+                    input=starting_input
                     on_change
                     node_ref=editor
                 />

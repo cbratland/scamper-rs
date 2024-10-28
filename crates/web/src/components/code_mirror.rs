@@ -1,13 +1,14 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::bindings::{create_editor, EditorView};
+use crate::bindings::{create_diagnostic, create_editor, Diagnostic, EditorView};
 use leptos::*;
+use scamper_rs::{diagnostics::error::ErrorLevel, Engine};
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlElement;
 
 #[component]
 pub fn CodeMirror(
-    input: Signal<Option<String>>,
+    input: String,
     // errors: Signal<Vec<ErrorMarker>>,
     #[prop(into)] on_change: Callback<Option<String>, ()>,
     #[prop(into)] node_ref: NodeRef<html::Div>,
@@ -31,11 +32,39 @@ pub fn CodeMirror(
                 on_change.call(Some(content));
             }) as Box<dyn Fn(EditorView)>);
 
-            let initial_content = input.get().unwrap_or_default();
-            let editor = create_editor(&initial_content, element, &onupdate);
+            let onlint = Closure::wrap(Box::new(move |editor: EditorView| {
+                let code = editor.get_doc();
+                let engine = Engine::new();
+                match engine.run(&code) {
+                    Ok(_) => vec![],
+                    Err(e) => {
+                        if let Some(span) = e.span {
+                            vec![create_diagnostic(
+                                span.loc,
+                                span.loc + span.len as u32,
+                                match e.level {
+                                    ErrorLevel::Error => "error",
+                                    ErrorLevel::Warning => "warning",
+                                    _ => "info",
+                                }
+                                .to_string(),
+                                e.message,
+                            )]
+                        } else {
+                            vec![]
+                        }
+                    }
+                }
+            })
+                as Box<dyn Fn(EditorView) -> Vec<Diagnostic>>);
+
+            // let initial_content = input.get().unwrap_or_default();
+            let editor = create_editor(&input, element, &onupdate, &onlint);
             *editor_instance.borrow_mut() = Some(editor);
 
-            onupdate.forget(); // prevent closure from getting dropped
+            // prevent closures from getting dropped
+            onupdate.forget();
+            onlint.forget();
         }
     });
 
