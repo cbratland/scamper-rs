@@ -264,9 +264,18 @@ impl<'a> Parser<'a> {
                     span: begin.to(&end),
                 })
             }
-        } else if self.check(&TokenKind::Quote) {
-            // treat as (quote whatever)
-            todo!()
+        } else if self.eat(&TokenKind::Quote) {
+            // treat as (quote next_value)
+            let quote_span = self.prev_token.span;
+            let next_value = self.parse_value()?;
+            let span = next_value.span;
+            Ok(ParserValue {
+                kind: ParserValueKind::List(vec![
+                    ParserValue::sym("quote".to_string(), quote_span),
+                    next_value,
+                ]),
+                span,
+            })
         } else {
             // parse single
             self.parse_single(true)
@@ -481,7 +490,7 @@ impl<'a> Parser<'a> {
             keyword::Begin => self.parse_begin(args, span),
             keyword::Match => self.parse_match(args, span),
             keyword::Cond => self.parse_cond(args, span),
-            // keyword::Quote => self.parse_quote(args, span),
+            keyword::Quote => self.parse_quote(args, span),
             // keyword::Section => self.parse_section(args, span),
             _ => todo!(),
         }
@@ -793,6 +802,16 @@ impl<'a> Parser<'a> {
             self.lower(branch[0].clone())?,
             self.lower(branch[1].clone())?,
         ))
+    }
+
+    pub fn parse_quote(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        if args.len() != 1 {
+            return Err(ParseError::new(
+                "quote expression must have exactly one sub-expression",
+                Some(span),
+            ));
+        }
+        Ok(vec![Operation::value(args[0].clone().into(), span)])
     }
 }
 

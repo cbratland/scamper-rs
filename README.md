@@ -26,7 +26,6 @@ currently only prelude and some stuff from the image library is implemented. som
 
 - structs
 - `section`
-- quotes
 - music functionality
 - the debugging features of the original scamper
 - all the other scamper built in libraries
