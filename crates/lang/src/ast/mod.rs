@@ -25,6 +25,10 @@ pub struct Span {
 }
 
 impl Span {
+    pub fn empty() -> Self {
+        Self { loc: 0, len: 0 }
+    }
+
     // beginning of self to end of end
     pub fn to(&self, end: &Span) -> Self {
         Self {

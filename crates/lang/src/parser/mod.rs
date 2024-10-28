@@ -69,6 +69,7 @@ pub struct Parser<'a> {
     pub prev_token: Token,
     pub stream: TokenStream,
     pub label_counter: u32,
+    pub hole_counter: u32,
 }
 
 impl<'a> Parser<'a> {
@@ -81,6 +82,7 @@ impl<'a> Parser<'a> {
             prev_token: Token::new(TokenKind::Eof, 0, 0),
             stream,
             label_counter: 0,
+            hole_counter: 0,
         }
     }
 
@@ -93,6 +95,7 @@ impl<'a> Parser<'a> {
             prev_token: Token::new(TokenKind::Eof, 0, 0),
             stream,
             label_counter: 0,
+            hole_counter: 0,
         })
     }
 
@@ -168,6 +171,12 @@ impl<'a> Parser<'a> {
         self.label_counter += 1;
         label
     }
+
+    pub fn fresh_hole(&mut self) -> String {
+        let hole = format!("_{}", self.hole_counter);
+        self.hole_counter += 1;
+        hole
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -195,6 +204,20 @@ impl ParserValue {
     pub fn list(values: Vec<ParserValue>, span: Span) -> Self {
         Self {
             kind: ParserValueKind::List(values),
+            span,
+        }
+    }
+
+    pub fn vector(values: Vec<ParserValue>, span: Span) -> Self {
+        Self {
+            kind: ParserValueKind::Vector(values),
+            span,
+        }
+    }
+
+    pub fn value(value: Value, span: Span) -> Self {
+        Self {
+            kind: ParserValueKind::Value(value),
             span,
         }
     }
@@ -490,7 +513,7 @@ impl<'a> Parser<'a> {
             keyword::Match => self.parse_match(args, span),
             keyword::Cond => self.parse_cond(args, span),
             keyword::Quote => self.parse_quote(args, span),
-            // keyword::Section => self.parse_section(args, span),
+            keyword::Section => self.parse_section(args, span),
             _ => todo!(),
         }
     }
@@ -811,6 +834,82 @@ impl<'a> Parser<'a> {
             ));
         }
         Ok(vec![Operation::value(args[0].clone().into(), span)])
+    }
+
+    pub fn parse_section(&mut self, args: &[ParserValue], span: Span) -> Result<Vec<Operation>> {
+        if args.is_empty() {
+            return Err(ParseError::new(
+                "section expression must have at least one sub-expression",
+                Some(span),
+            ));
+        }
+        let mut params = Vec::new();
+        let app = args
+            .iter()
+            .map(|arg| self.collect_section_holes(&mut params, arg.clone()))
+            .collect::<Result<Vec<_>>>()?;
+
+        let lambda = ParserValue::list(
+            vec![
+                ParserValue::sym("lambda".into(), span),
+                ParserValue::list(
+                    params
+                        .into_iter()
+                        .map(|p| ParserValue::sym(p, span))
+                        .collect(),
+                    span,
+                ),
+                ParserValue::list(app, span),
+            ],
+            span,
+        );
+
+        self.lower(lambda)
+    }
+
+    fn collect_section_holes(
+        &mut self,
+        bvars: &mut Vec<String>,
+        v: ParserValue,
+    ) -> Result<ParserValue> {
+        match v.kind {
+            ParserValueKind::Symbol(s) if s == "_" => {
+                let x = self.fresh_hole();
+                bvars.push(x.clone());
+                Ok(ParserValue::sym(x, v.span))
+            }
+            ParserValueKind::Value(Value::Null) => Ok(v),
+            ParserValueKind::List(ref values) => {
+                let head = values[0].clone();
+                if let ParserValueKind::Symbol(s) = head.kind {
+                    if s == "section" {
+                        return Ok(v);
+                    }
+                }
+                Ok(ParserValue::list(
+                    values
+                        .into_iter()
+                        .map(|v| self.collect_section_holes(bvars, v.clone()))
+                        .collect::<Result<Vec<_>>>()?,
+                    v.span,
+                ))
+            }
+            ParserValueKind::Value(Value::Pair(x, y)) => {
+                let x = self.collect_section_holes(bvars, ParserValue::value(*x, Span::empty()))?;
+                let y = self.collect_section_holes(bvars, ParserValue::value(*y, Span::empty()))?;
+                Ok(ParserValue::value(
+                    Value::Pair(Box::new(x.into()), Box::new(y.into())),
+                    v.span,
+                ))
+            }
+            ParserValueKind::Vector(ref vs) => Ok(ParserValue::vector(
+                vs.into_iter()
+                    .map(|v| self.collect_section_holes(bvars, v.clone()))
+                    .collect::<Result<Vec<_>>>()?,
+                v.span,
+            )),
+            _ => Ok(v),
+        }
     }
 }
 

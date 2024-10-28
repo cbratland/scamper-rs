@@ -501,7 +501,6 @@ impl Runner {
                 self.step_import(mod_name)?;
             }
             StatementKind::Display { body } => {
-                // todo: do something different?
                 self.step_expr(body);
             }
             StatementKind::Struct { id, fields } => {
