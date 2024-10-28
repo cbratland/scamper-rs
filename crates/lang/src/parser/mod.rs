@@ -305,7 +305,7 @@ impl<'a> Parser<'a> {
                     }
                 }
             },
-            TokenKind::Sequence => match str {
+            _ => match str {
                 "null" => ParserValueKind::Value(Value::Null),
                 _ => {
                     if !wild_allowed && str.starts_with('_') {
@@ -314,9 +314,6 @@ impl<'a> Parser<'a> {
                     ParserValueKind::Symbol(str.to_string())
                 }
             },
-            _ => {
-                todo!();
-            }
         };
         self.next();
         Ok(ParserValue {

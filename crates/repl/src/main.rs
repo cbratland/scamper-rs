@@ -2,6 +2,7 @@ use std::env;
 use std::io::Read;
 use std::process;
 
+use interpreter::Output;
 use scamper_rs::*;
 
 use rustyline::error::ReadlineError;
@@ -63,7 +64,12 @@ fn repl() {
                 match engine.run(&line) {
                     Ok(items) => {
                         for item in items {
-                            println!("{}", item);
+                            match item {
+                                Output::Value(value) => println!("{}", value),
+                                Output::Error(err) => {
+                                    err.emit(&line);
+                                }
+                            };
                         }
                     }
                     Err(err) => {

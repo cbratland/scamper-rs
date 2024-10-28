@@ -7,6 +7,12 @@ use crate::ast::*;
 
 type Result<T> = std::result::Result<T, RuntimeError>;
 
+#[derive(Debug, Clone)]
+pub enum Output {
+    Value(Value),
+    Error(RuntimeError),
+}
+
 pub struct ExecutionStack {
     pub stack: Vec<Value>,
     env: Rc<RefCell<Env>>,
@@ -141,7 +147,8 @@ impl ExecutionStack {
                 match func {
                     Value::Closure(closure) => self.eval_closure(closure, args, op.span)?,
                     Value::Function(function) => {
-                        let result = function.0(&args)?;
+                        let result = function.0(&args)
+                            .map_err(|err| RuntimeError::new(err.message, Some(op.span)))?;
                         self.stack.push(result);
                     }
                     _ => {
@@ -339,7 +346,7 @@ impl ExecutionStack {
 pub struct Runner {
     stmts: IntoIter<Statement>,
     stmt_count: usize,
-    output: Vec<Value>,
+    output: Vec<Output>,
     env: Rc<RefCell<Env>>,
     current_stmt: usize,
 }
@@ -357,7 +364,7 @@ impl Runner {
         }
     }
 
-    pub fn get_output(self) -> Vec<Value> {
+    pub fn get_output(self) -> Vec<Output> {
         self.output
     }
 
@@ -374,14 +381,14 @@ impl Runner {
                 self.step_define(name, body)?;
             }
             StatementKind::Expression { body } => {
-                self.step_expr(body)?;
+                self.step_expr(body);
             }
             StatementKind::Import { mod_name } => {
                 self.step_import(mod_name)?;
             }
             StatementKind::Display { body } => {
                 // todo: do something different?
-                self.step_expr(body)?;
+                self.step_expr(body);
             }
             StatementKind::Struct { id, fields } => {
                 self.step_struct(id, fields)?;
@@ -392,11 +399,15 @@ impl Runner {
         Ok(())
     }
 
-    pub fn execute(&mut self) -> Result<()> {
+    pub fn execute(&mut self) {
         while !self.is_done() {
-            self.step()?;
+            match self.step() {
+                Ok(_) => {}
+                Err(e) => {
+                    self.output.push(Output::Error(e));
+                }
+            }
         }
-        Ok(())
     }
 }
 
@@ -438,18 +449,21 @@ impl Runner {
         todo!();
     }
 
-    fn step_expr(&mut self, body: Block) -> Result<()> {
+    fn step_expr(&mut self, body: Block) {
         let mut interpreter = ExecutionStack::new(Rc::clone(&self.env), body);
-        _ = interpreter.run()?;
-        let value = interpreter.stack.pop();
-        match value {
-            Some(value) => {
-                self.output.push(value);
+        match interpreter.run() {
+            Ok(_) => {
+                let value = interpreter.stack.pop();
+                match value {
+                    Some(value) => {
+                        self.output.push(Output::Value(value));
+                    }
+                    None => {
+                        todo!();
+                    }
+                };
             }
-            None => {
-                todo!();
-            }
-        };
-        Ok(())
+            Err(e) => self.output.push(Output::Error(e)),
+        }
     }
 }

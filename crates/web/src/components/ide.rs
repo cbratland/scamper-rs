@@ -1,7 +1,7 @@
-use super::{CodeMirror, RenderedValue};
+use super::{CodeMirror, RenderedValue, ValueOrError};
 use crate::VERSION;
 use leptos::*;
-use scamper_rs::Engine;
+use scamper_rs::{interpreter::Output, Engine};
 
 const STORAGE_KEY: &str = "scamper_code";
 
@@ -31,14 +31,20 @@ pub fn Ide() -> impl IntoView {
         if let Some(code) = input.get() {
             let engine = Engine::new();
 
-            let Ok(scm_output) = engine.run(&code) else {
-                logging::error!("error while trying to execute code");
-                return;
+            let values = match engine.run(&code) {
+                Ok(values) => values
+                    .into_iter()
+                    .map(|v| match v {
+                        Output::Value(v) => ValueOrError::Value(v),
+                        Output::Error(err) => ValueOrError::Error(err.emit_to_string(&code)),
+                    })
+                    .collect(),
+                Err(err) => vec![ValueOrError::Error(err.emit_to_web_string(&code))],
             };
 
-            output.set(scm_output);
+            output.set(values);
             set_dirty.set(false);
-        }
+        };
     };
 
     // save code to local storage

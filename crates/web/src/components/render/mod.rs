@@ -1,6 +1,6 @@
 mod code_block;
 mod drawing;
-mod value;
+pub mod value;
 
 pub use code_block::CodeBlock;
 pub use drawing::DrawingView;

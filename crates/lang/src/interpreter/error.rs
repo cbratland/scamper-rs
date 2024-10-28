@@ -1,6 +1,6 @@
 use crate::ast::Span;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RuntimeError {
     pub message: String,
     // pub code // TODO: errors should have codes
@@ -12,31 +12,23 @@ impl RuntimeError {
         Self { message, span }
     }
 
-    pub fn emit(&self, src: &str) {
+    pub fn emit_to_string(&self, src: &str) -> String {
         let line_span = if let Some(span) = self.span {
             let loc = span.loc as usize;
             if loc >= src.len() {
-                eprintln!("Error: {}", self.message);
-                return;
+                return format!("Runtime error: {}", self.message);
             }
-            let source_up_to = &src[..loc];
 
-            let start_line = bytecount::count(source_up_to.as_bytes(), b'\n') + 1;
-            let start_col = loc - source_up_to.rfind('\n').unwrap_or(0);
+            let end = loc + span.len as usize;
 
-            let end_loc = loc + (span.len as usize);
-            let end_line = start_line + bytecount::count(&src[end_loc..].as_bytes(), b'\n');
-            let end_col = end_loc - src[end_loc..].rfind('\n').unwrap_or(0);
+            let source_up_to_start = &src[..loc];
+            let source_up_to_end = &src[..end];
 
-            // eprintln!("{line}:{col}");
+            let start_line = bytecount::count(source_up_to_start.as_bytes(), b'\n') + 1;
+            let end_line = bytecount::count(source_up_to_end.as_bytes(), b'\n') + 1;
 
-            // Print the line containing the error
-            // let line_start = source_up_to.rfind('\n').map_or(0, |pos| pos + 1);
-            // let line_end = src[loc..].find('\n').map_or(src.len(), |pos| loc + pos);
-            // let line_content = &src[line_start..line_end];
-
-            // eprintln!("{:2} | {}", line, line_content);
-            // eprintln!("   | {}{}", " ".repeat(col), "^".repeat(span.len as usize));
+            let start_col = loc - source_up_to_start.rfind('\n').unwrap_or(0);
+            let end_col = end - source_up_to_end.rfind('\n').unwrap_or(0) - 1;
 
             Some(format!(
                 "{}:{}-{}:{}",
@@ -46,8 +38,8 @@ impl RuntimeError {
             None
         };
 
-        eprintln!(
-            "Runtime error{}: {}",
+        return format!(
+            "Runtime error{}: {}.",
             if let Some(line_span) = line_span {
                 format!(" [{}]", line_span)
             } else {
@@ -55,5 +47,9 @@ impl RuntimeError {
             },
             self.message
         );
+    }
+
+    pub fn emit(&self, src: &str) {
+        eprintln!("{}", self.emit_to_string(src));
     }
 }
