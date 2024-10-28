@@ -1,5 +1,6 @@
 use leptos::*;
 
+pub mod bindings;
 mod components;
 use components::Ide;
 

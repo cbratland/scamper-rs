@@ -1,1 +1,4 @@
 dist/
+build/
+js/codemirror/syntax.grammar.js
+js/codemirror/syntax.grammar.terms.js

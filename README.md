@@ -15,11 +15,10 @@ cargo run --bin scamper-repl
 but there's also a clone of the original scamper web interface that compiles the rust code to webassembly. you can run it with:
 
 ```bash
-cd crates/web
-trunk serve
+bun run serve
 ```
 
-but you might need to set up [leptos](https://leptos.dev) and trunk first (the leptos documentation book walks through this).
+but you might need to set up [leptos](https://leptos.dev) and trunk first (the leptos documentation book walks through this), and [bun](https://bun.sh) (better than node).
 
 ## missing stuff
 
@@ -29,6 +28,5 @@ currently only prelude and some stuff from the image library is implemented. som
 - `match`, `section`, etc.
 - quotes
 - music functionality
-- code highlighting / parenthesis matching in the web interface
-- error handling on the web interface
+- inline error handling on the web interface
 - the debugging features of the original scamper

@@ -26,11 +26,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Add WASM target
         run: rustup target add wasm32-unknown-unknown
+
+      - name: Build js
+        run: |
+          bun install
+          bun run build:js
 
       - name: Build with Trunk
         run: |

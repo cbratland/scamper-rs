@@ -1,101 +1,59 @@
-use codemirror::{DocApi, Editor, EditorOptions, GutterId};
+use std::{cell::RefCell, rc::Rc};
+
+use crate::bindings::{create_editor, EditorView};
 use leptos::*;
-use leptos::{
-    html::Textarea,
-    // web_sys::{Document, Element},
-};
-use std::rc::Rc;
-
-const GUTTER_ERROR: GutterId = GutterId::new("gutter-error");
-
-// #[derive(Debug, Clone, PartialEq)]
-// pub struct ErrorMarker {
-//     pub line: Line,
-// }
+use wasm_bindgen::prelude::*;
+use web_sys::HtmlElement;
 
 #[component]
 pub fn CodeMirror(
     input: Signal<Option<String>>,
     // errors: Signal<Vec<ErrorMarker>>,
     #[prop(into)] on_change: Callback<Option<String>, ()>,
+    #[prop(into)] node_ref: NodeRef<html::Div>,
 ) -> impl IntoView {
-    let textarea_ref = NodeRef::<Textarea>::new();
+    let editor_instance: Rc<RefCell<Option<EditorView>>> = Rc::new(RefCell::new(None));
+    // let editor_instance_clone = editor_instance.clone();
 
-    textarea_ref.on_load(move |el| {
-        let _ = el.on_mount(move |el| {
-            let options = EditorOptions::default()
-                .line_numbers(true)
-                .gutters(&[GUTTER_ERROR]);
-            let editor = Editor::from_text_area(&el, &options);
+    // let is_updating = Rc::new(RefCell::new(false));
+    // let is_updating_clone = is_updating.clone();
 
-            editor.set_value(&match input.get() {
-                Some(v) => v,
-                None => String::default(),
-            });
+    node_ref.on_load(move |node| {
+        if let Some(element) = node.dyn_ref::<HtmlElement>().cloned() {
+            let on_change = on_change.clone();
+            // let is_updating = is_updating.clone();
 
-            editor.on_change(move |editor, _| {
-                let value = editor.value();
-                on_change.call(value);
-            });
+            let onupdate = Closure::wrap(Box::new(move |editor: EditorView| {
+                // if *is_updating.borrow() {
+                //     return;
+                // }
+                let content = editor.get_doc();
+                on_change.call(Some(content));
+            }) as Box<dyn Fn(EditorView)>);
 
-            let editor = Rc::new(editor);
+            let initial_content = input.get().unwrap_or_default();
+            let editor = create_editor(&initial_content, element, &onupdate);
+            *editor_instance.borrow_mut() = Some(editor);
 
-            // create_effect({
-            //     let editor = Rc::clone(&editor);
-            //     move |_| {
-            //         editor.set_value(&match input.get() {
-            //             Some(v) => v,
-            //             None => String::default(),
-            //         });
-            //     }
-            // });
-
-            create_effect(move |_| {
-                input.with(|x| {
-                    let txt = match x {
-                        Some(v) => v,
-                        None => "",
-                    };
-                    if editor.value() != *x {
-                        editor.set_value(txt);
-                    }
-                });
-            });
-            // create_effect({
-            //     // let editor = Rc::clone(&editor);
-            //     move |_| {
-            //         input.try_with(|x| {
-            //             let txt = match x {
-            //                 Some(v) => v,
-            //                 None => "",
-            //             };
-            //             if editor.value() != *x {
-            //                 editor.set_value(txt);
-            //             }
-            //         });
-            //     }
-            // });
-
-            // Effect::new(move |_| {
-            //     errors.with(|errors| {
-            //         editor.clear_gutter(GUTTER_ERROR);
-            //         let doc = document();
-            //         for ErrorMarker { line } in errors {
-            //             let marker = create_error_marker(&doc);
-            //             editor.set_gutter_marker(*line, GUTTER_ERROR, &marker);
-            //         }
-            //     });
-            // });
-        });
+            onupdate.forget(); // prevent closure from getting dropped
+        }
     });
 
-    view! { <textarea _ref=textarea_ref /> }
+    // input changes
+    // create_effect(move |_| {
+    //     if let Some(new_content) = input.get() {
+    //         if let Some(editor) = &*editor_instance_clone.borrow() {
+    //             *is_updating_clone.borrow_mut() = true;
+    //             editor.set_doc(&new_content);
+    //             *is_updating_clone.borrow_mut() = false;
+    //         }
+    //     }
+    // });
+
+    view! {
+        <div
+            id="editor"
+            _ref=node_ref
+        />
+    }
 }
-
-// const ERROR_MARKER_CLASS: &str = "CodeMirror-lint-marker-error CodeMirror-lint-marker";
-
-// fn create_error_marker(document: &Document) -> Element {
-//     let marker = document.create_element("div").unwrap();
-//     marker.set_attribute("class", ERROR_MARKER_CLASS).unwrap();
-//     marker
-// }

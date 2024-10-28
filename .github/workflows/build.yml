@@ -15,7 +15,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build js
+        run: |
+          bun install
+          bun run build:js
+
       - name: Build
         run: cargo build --verbose
+
       - name: Run tests
         run: cargo test --verbose

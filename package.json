@@ -1,0 +1,22 @@
+{
+	"name": "scamper-rs",
+	"module": "crates/web/js/index.ts",
+	"type": "module",
+	"scripts": {
+		"build:grammar": "lezer-generator crates/web/js/codemirror/syntax.grammar -o crates/web/js/codemirror/syntax.grammar.js",
+		"build:js": "bun run build:grammar && cd crates/web && bun build ./js/index.ts --outdir ./build",
+		"serve": "bun run build:js && cd crates/web && trunk serve",
+		"build": "bun run build:js && cd crates/web && trunk build --release"
+	},
+	"devDependencies": {
+		"@lezer/generator": "^1.7.1",
+		"@types/bun": "latest"
+	},
+	"peerDependencies": {
+		"typescript": "^5.0.0"
+	},
+	"dependencies": {
+		"codemirror": "^6.0.1",
+		"split.js": "^1.6.5"
+	}
+}

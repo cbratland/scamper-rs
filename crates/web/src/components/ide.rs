@@ -1,7 +1,10 @@
 use super::{CodeMirror, RenderedValue, ValueOrError};
+use crate::bindings::create_split;
 use crate::VERSION;
+use html::Div;
 use leptos::*;
 use scamper_rs::{interpreter::Output, Engine};
+use web_sys::HtmlElement;
 
 const STORAGE_KEY: &str = "scamper_code";
 
@@ -19,12 +22,31 @@ pub fn Ide() -> impl IntoView {
     let input = RwSignal::new(starting_input);
     let output = RwSignal::new(Vec::new());
 
+    let editor = create_node_ref::<Div>();
+    let results = create_node_ref::<Div>();
+
+    // create split
+    create_effect(move |_| {
+        use wasm_bindgen::JsCast;
+        if let (Some(editor), Some(results)) = (
+            editor
+                .get()
+                .and_then(|n| n.dyn_ref::<HtmlElement>().cloned()),
+            results
+                .get()
+                .and_then(|n| n.dyn_ref::<HtmlElement>().cloned()),
+        ) {
+            create_split(vec![editor, results], vec![65.0, 35.0]);
+        }
+    });
+
     // update stored input code when input changes
     let on_change = Callback::new(move |txt: Option<String>| {
         input.set(txt.clone());
+        if !output.get().is_empty() {
+            set_dirty.set(true);
+        }
     });
-
-    // let errors = RwSignal::new(Vec::new());
 
     // handle run button click
     let run_click = move |_| {
@@ -77,21 +99,18 @@ pub fn Ide() -> impl IntoView {
                 // " ⋅ "
                 // <a href="reference.html">"Reference"</a>
               </div>
-              // <div class="text-align: right; font-size: 0.75em; color: #333;">
-              //   <a href="https://github.com/slag-plt/scamper"><i class="fa-brands fa-github"></i></a> " ⋅ "
-              //   <em><a href="https://github.com/slag-plt/scamper/issues">"Report an issue"</a></em>
-              // </div>
+              <div class="text-align: right; font-size: 0.75em; color: #333;">
+                <a href="https://github.com/cbratland/scamper-rs" target="_blank"><i class="fa-brands fa-github"></i></a> " ⋅ "
+                <em><a href="https://github.com/cbratland/scamper-rs/issues" target="_blank">"Report an issue"</a></em>
+              </div>
             </div>
             <div id="content">
-                <div id="editor" style="width: calc(65% - 5px);">
-                    <CodeMirror
-                      input=input.into()
-                      on_change
-                      // errors = errors.into()
-                    />
-                </div>
-                <div class="gutter gutter-horizontal" style="width: 10px;"></div>
-                <div id="results" style="width: calc(35% - 5px);">
+                <CodeMirror
+                    input=input.into()
+                    on_change
+                    node_ref=editor
+                />
+                <div id="results" node_ref=results>
                     <div id="results-toolbar">
                         <div class="text-align: left;">
                             <button
