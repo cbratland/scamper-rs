@@ -392,7 +392,35 @@ impl ExecutionStack {
             (Value::List(p), Value::Pair(vx, vy)) => {
                 self.match_lists(p, &vec![*vx.clone(), *vy.clone()])
             }
-            // (Value::List(p), Value::Struct(v)) => todo!(),
+            (Value::List(p), Value::Struct(v)) => {
+                if p.is_empty() {
+                    return Ok(None);
+                }
+
+                let Value::Symbol(head) = p.first().unwrap() else {
+                    return Ok(None);
+                };
+
+                if v.kind != *head {
+                    return Ok(None);
+                }
+
+                let args = p.iter().skip(1).collect::<Vec<&Value>>();
+
+                if v.fields.len() == args.len() {
+                    let mut env = Vec::new();
+                    for i in 0..v.fields.len() {
+                        let env2 = self.try_match(args[i], &v.values[i])?;
+                        if env2.is_none() {
+                            return Ok(None);
+                        }
+                        env.extend(env2.unwrap());
+                    }
+                    Ok(Some(env))
+                } else {
+                    Ok(None)
+                }
+            }
             _ => {
                 if pattern == value {
                     matches
@@ -404,7 +432,6 @@ impl ExecutionStack {
     }
 
     fn match_lists(&self, p: &Vec<Value>, v: &Vec<Value>) -> Result<Option<Vec<(String, Value)>>> {
-        // todo: what is this?
         if p.is_empty() || v.is_empty() {
             return Ok(None);
         }
@@ -559,8 +586,78 @@ impl Runner {
         Ok(())
     }
 
-    fn step_struct(&mut self, _id: String, _fields: Vec<String>) -> Result<()> {
-        todo!();
+    fn step_struct(&mut self, id: String, fields: Vec<String>) -> Result<()> {
+        assert_not_reserved(&id)?;
+        for field in &fields {
+            assert_not_reserved(field)?;
+        }
+
+        let pred_id = id.clone();
+        let pred_fn = move |args: &[Value]| {
+            if args.len() != 1 {
+                return Err(RuntimeError::new(
+                    format!("expected 1 argument, found {}", args.len()),
+                    None,
+                ));
+            }
+            Ok(Value::Boolean(match &args[0] {
+                Value::Struct(s) => s.kind == pred_id,
+                _ => false,
+            }))
+        };
+        self.env
+            .borrow_mut()
+            .set(format!("{id}?"), Value::Function(NativeFn::new(pred_fn)));
+
+        let ctor_id = id.clone();
+        let ctor_fields = fields.clone();
+        let ctor_fn = move |args: &[Value]| {
+            let target_args = ctor_fields.len();
+            if args.len() != target_args {
+                return Err(RuntimeError::new(
+                    format!("expected {target_args} arguments, found {}", args.len()),
+                    None,
+                ));
+            }
+            Ok(Value::Struct(Struct {
+                kind: ctor_id.clone(),
+                fields: ctor_fields.clone(),
+                values: args.to_vec(),
+            }))
+        };
+        self.env
+            .borrow_mut()
+            .set(id.clone(), Value::Function(NativeFn::new(ctor_fn)));
+
+        for (field_idx, field) in fields.iter().enumerate() {
+            let field_name = format!("{id}-{field}");
+            let field_id = id.clone();
+            let field_fn = move |args: &[Value]| {
+                if args.len() != 1 {
+                    return Err(RuntimeError::new(
+                        format!("expected 1 argument, found {}", args.len()),
+                        None,
+                    ));
+                }
+                match &args[0] {
+                    Value::Struct(s) => {
+                        if s.kind == field_id {
+                            return Ok(s.values[field_idx].clone());
+                        }
+                    }
+                    _ => {}
+                };
+                Err(RuntimeError::new(
+                    format!("expected {} struct", field_id),
+                    None,
+                ))
+            };
+            self.env
+                .borrow_mut()
+                .set(field_name, Value::Function(NativeFn::new(field_fn)));
+        }
+
+        Ok(())
     }
 
     fn step_expr(&mut self, body: Block) {

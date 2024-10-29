@@ -445,7 +445,33 @@ impl<'a> Parser<'a> {
                         let span = value.span;
                         return Ok(Some(Statement::display(self.lower(args[0].clone())?, span)));
                     }
-                    keyword::Struct => todo!(),
+                    keyword::Struct => {
+                        if args.len() != 2 {
+                            return Err(ParseError::new("struct statements must have 2 arguments: the name of the struct and a list of fields", Some(value.span)));
+                        }
+                        let ParserValueKind::Symbol(name) = &args[0].kind else {
+                            return Err(ParseError::new(
+                                "the first argument of a struct statement must be a struct name",
+                                Some(args[0].span),
+                            ));
+                        };
+                        let ParserValueKind::List(field_values) = &args[1].kind else {
+                            return Err(ParseError::new("the second argument of a struct statement must be a list of fields", Some(args[1].span)));
+                        };
+
+                        let fields = field_values
+                            .iter()
+                            .map(|field| match &field.kind {
+                                ParserValueKind::Symbol(sym) => Ok(sym.clone()),
+                                _ => Err(ParseError::new(
+                                    "struct fields must be identifiers",
+                                    Some(field.span),
+                                )),
+                            })
+                            .collect::<Result<Vec<String>>>()?;
+
+                        return Ok(Some(Statement::struct_(name.clone(), fields, value.span)));
+                    }
                     _ => {}
                 }
             }

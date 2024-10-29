@@ -72,7 +72,6 @@ pub enum OperationKind {
     Value {
         value: Value,
     },
-    // lambda
     Closure {
         params: Vec<String>,
         body: Block,
@@ -122,13 +121,6 @@ pub struct Operation {
 }
 
 impl Operation {
-    pub fn value(value: Value, span: Span) -> Self {
-        Self {
-            kind: OperationKind::Value { value },
-            span,
-        }
-    }
-
     pub fn var(name: String, span: Span) -> Self {
         Self {
             kind: OperationKind::Variable { name },
@@ -136,9 +128,9 @@ impl Operation {
         }
     }
 
-    pub fn ap(arity: u32, span: Span) -> Self {
+    pub fn value(value: Value, span: Span) -> Self {
         Self {
-            kind: OperationKind::Application { arity },
+            kind: OperationKind::Value { value },
             span,
         }
     }
@@ -150,9 +142,9 @@ impl Operation {
         }
     }
 
-    pub fn let_(names: Vec<String>, body: Block, span: Span) -> Self {
+    pub fn ap(arity: u32, span: Span) -> Self {
         Self {
-            kind: OperationKind::Let { names, body },
+            kind: OperationKind::Application { arity },
             span,
         }
     }
@@ -167,23 +159,9 @@ impl Operation {
         }
     }
 
-    pub fn label(name: String) -> Self {
+    pub fn let_(names: Vec<String>, body: Block, span: Span) -> Self {
         Self {
-            kind: OperationKind::Label { name },
-            span: Span { loc: 0, len: 0 },
-        }
-    }
-
-    pub fn and(jump_to: Label, span: Span) -> Self {
-        Self {
-            kind: OperationKind::And { jump_to },
-            span,
-        }
-    }
-
-    pub fn or(jump_to: Label, span: Span) -> Self {
-        Self {
-            kind: OperationKind::Or { jump_to },
+            kind: OperationKind::Let { names, body },
             span,
         }
     }
@@ -202,10 +180,31 @@ impl Operation {
         }
     }
 
+    pub fn and(jump_to: Label, span: Span) -> Self {
+        Self {
+            kind: OperationKind::And { jump_to },
+            span,
+        }
+    }
+
+    pub fn or(jump_to: Label, span: Span) -> Self {
+        Self {
+            kind: OperationKind::Or { jump_to },
+            span,
+        }
+    }
+
     pub fn cond(body: Block, end: Label, span: Span) -> Self {
         Self {
             kind: OperationKind::Cond { body, end },
             span,
+        }
+    }
+
+    pub fn label(name: String) -> Self {
+        Self {
+            kind: OperationKind::Label { name },
+            span: Span { loc: 0, len: 0 },
         }
     }
 
@@ -247,12 +246,12 @@ impl Statement {
         Self { kind, span }
     }
 
-    pub fn expr(body: Block, span: Span) -> Self {
-        Self::new(StatementKind::Expression { body }, span)
-    }
-
     pub fn binding(name: String, body: Block, span: Span) -> Self {
         Self::new(StatementKind::Binding { name, body }, span)
+    }
+
+    pub fn expr(body: Block, span: Span) -> Self {
+        Self::new(StatementKind::Expression { body }, span)
     }
 
     pub fn import(mod_name: String, span: Span) -> Self {
@@ -261,6 +260,10 @@ impl Statement {
 
     pub fn display(body: Block, span: Span) -> Self {
         Self::new(StatementKind::Display { body }, span)
+    }
+
+    pub fn struct_(id: String, fields: Vec<String>, span: Span) -> Self {
+        Self::new(StatementKind::Struct { id, fields }, span)
     }
 }
 

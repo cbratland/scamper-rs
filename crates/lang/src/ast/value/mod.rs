@@ -9,10 +9,31 @@ pub use function::Function;
 pub use list::{List, Vector};
 pub use number::Number;
 
-pub type NativeFnSignature = fn(&[Value]) -> Result<Value, RuntimeError>;
+pub type NativeFnSignature = dyn Fn(&[Value]) -> Result<Value, RuntimeError>;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct NativeFn(pub NativeFnSignature);
+#[derive(Clone)]
+pub struct NativeFn(pub Rc<NativeFnSignature>);
+
+impl NativeFn {
+    pub fn new<F>(f: F) -> Self
+    where
+        F: Fn(&[Value]) -> Result<Value, RuntimeError> + 'static,
+    {
+        Self(Rc::new(f))
+    }
+}
+
+impl Debug for NativeFn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<native function>")
+    }
+}
+
+impl PartialEq for NativeFn {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Closure {
@@ -28,6 +49,19 @@ impl PartialEq for Closure {
 }
 
 #[derive(Debug, Clone)]
+pub struct Struct {
+    pub kind: String,
+    pub fields: Vec<String>,
+    pub values: Vec<Value>,
+}
+
+impl PartialEq for Struct {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.values == other.values
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Value {
     Boolean(bool),
     Integer(i64),
@@ -39,6 +73,7 @@ pub enum Value {
     Vector(Vec<Value>),
     Symbol(String),
     Closure(Closure),
+    Struct(Struct),
     Function(NativeFn), // rust function
     Foreign(Rc<dyn Any>),
     Null,
@@ -75,28 +110,29 @@ impl std::fmt::Display for Value {
             Value::Char(c) => write!(f, "\\#{}", c),
             Value::Pair(a, b) => write!(f, "(pair {} {})", a, b),
             Value::List(l) => {
-                write!(f, "(list ")?;
-                for (i, item) in l.iter().enumerate() {
-                    if i != 0 {
-                        write!(f, " ")?;
-                    }
-                    write!(f, "{}", item)?;
+                write!(f, "(list")?;
+                for item in l {
+                    write!(f, " {}", item)?;
                 }
                 write!(f, ")")
             }
             Value::Vector(v) => {
-                write!(f, "(vector ")?;
-                for (i, item) in v.iter().enumerate() {
-                    if i != 0 {
-                        write!(f, " ")?;
-                    }
-                    write!(f, "{}", item)?;
+                write!(f, "(vector")?;
+                for item in v {
+                    write!(f, " {}", item)?;
                 }
                 write!(f, ")")
             }
             Value::Symbol(s) => write!(f, "{}", s),
             Value::Closure(c) => {
                 write!(f, "(lambda ({}) <body>)", c.params.join(" "))
+            }
+            Value::Struct(s) => {
+                write!(f, "({}", s.kind)?;
+                for value in &s.values {
+                    write!(f, " {}", value)?;
+                }
+                write!(f, ")")
             }
             Value::Function(_) => write!(f, "<function>"),
             Value::Foreign(_) => write!(f, "<foreign>"),
@@ -120,6 +156,7 @@ impl PartialEq for Value {
             (Value::Vector(a), Value::Vector(b)) => *a == *b,
             (Value::Symbol(a), Value::Symbol(b)) => *a == *b,
             (Value::Closure(a), Value::Closure(b)) => *a == *b,
+            (Value::Struct(a), Value::Struct(b)) => *a == *b,
             (Value::Function(a), Value::Function(b)) => *a == *b,
             (Value::Null, Value::Null) => true,
             (Value::List(a), Value::Null) => a.is_empty(),
