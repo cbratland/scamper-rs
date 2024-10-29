@@ -35,7 +35,7 @@ pub fn CodeMirror(
             let onlint = Closure::wrap(Box::new(move |editor: EditorView| {
                 let code = editor.get_doc();
                 let engine = Engine::new();
-                match engine.run(&code) {
+                match engine.check_syntax(&code) {
                     Ok(_) => vec![],
                     Err(e) => {
                         if let Some(span) = e.span {

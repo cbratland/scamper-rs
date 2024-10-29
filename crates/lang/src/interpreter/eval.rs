@@ -6,6 +6,13 @@ use super::{Env, RuntimeError};
 use crate::ast::*;
 use crate::parser::keyword::RESERVED_WORDS;
 
+// wasm has a smaller stack size in debug mode
+#[cfg(debug_assertions)]
+const MAX_CALL_STACK_DEPTH: usize = 25;
+
+#[cfg(not(debug_assertions))]
+const MAX_CALL_STACK_DEPTH: usize = 1000;
+
 type Result<T> = std::result::Result<T, RuntimeError>;
 
 #[derive(Debug, Clone)]
@@ -20,6 +27,7 @@ pub struct ExecutionStack {
     ops: IntoIter<Operation>,
     op_count: usize,
     current_op: usize,
+    call_stack_depth: usize,
 }
 
 impl ExecutionStack {
@@ -36,6 +44,7 @@ impl ExecutionStack {
                 ops: Vec::new().into_iter(),
                 op_count: 0,
                 current_op: 0,
+                call_stack_depth: 0,
             }
         } else {
             Self {
@@ -44,6 +53,7 @@ impl ExecutionStack {
                 ops: body.into_iter(),
                 op_count,
                 current_op: 0,
+                call_stack_depth: 0,
             }
         }
     }
@@ -69,22 +79,35 @@ impl ExecutionStack {
         &mut self,
         new_env: Option<Rc<RefCell<Env>>>,
         new_ops: Vec<Operation>,
+        span: Option<Span>,
     ) -> Result<()> {
-        let curr_count = std::mem::replace(&mut self.op_count, new_ops.len());
-        let curr_ops = std::mem::replace(&mut self.ops, new_ops.into_iter());
-        let curr_current = std::mem::replace(&mut self.current_op, 0);
-        let new_env = new_env.unwrap_or(self.env.clone());
-        let curr_env = std::mem::replace(&mut self.env, new_env);
+        self.call_stack_depth += 1;
 
-        while !self.is_done() {
-            self.step()?;
+        if self.call_stack_depth >= MAX_CALL_STACK_DEPTH {
+            return Err(RuntimeError::new(
+                "Maximum call stack size exceeded".to_string(),
+                span,
+            ));
         }
-        self.ops = curr_ops;
-        self.op_count = curr_count;
-        self.current_op = curr_current;
-        self.env = curr_env;
 
-        Ok(())
+        let new_env = new_env.unwrap_or_else(|| self.env.clone());
+        let saved_state = (
+            std::mem::replace(&mut self.op_count, new_ops.len()),
+            std::mem::replace(&mut self.ops, new_ops.into_iter()),
+            std::mem::replace(&mut self.current_op, 0),
+            std::mem::replace(&mut self.env, new_env),
+        );
+
+        let result = self.run();
+
+        self.op_count = saved_state.0;
+        self.ops = saved_state.1;
+        self.current_op = saved_state.2;
+        self.env = saved_state.3;
+
+        self.call_stack_depth -= 1;
+
+        result
     }
 
     fn jump_to(&mut self, label: String) -> Result<()> {
@@ -182,9 +205,9 @@ impl ExecutionStack {
                 match cond {
                     Value::Boolean(b) => {
                         if b {
-                            self.dump_and_switch(None, if_block)?;
+                            self.dump_and_switch(None, if_block, Some(op.span))?;
                         } else {
-                            self.dump_and_switch(None, else_block)?;
+                            self.dump_and_switch(None, else_block, Some(op.span))?;
                         }
                     }
                     _ => {
@@ -209,7 +232,7 @@ impl ExecutionStack {
                 let values = self.stack.split_off(self.stack.len() - names.len());
 
                 let new_env = self.extend_env(names.into_iter().zip(values.into_iter()));
-                self.dump_and_switch(Some(new_env), body)?;
+                self.dump_and_switch(Some(new_env), body, Some(op.span))?;
             }
             OperationKind::Sequence { subexpr_count } => {
                 self.stack = self
@@ -246,7 +269,7 @@ impl ExecutionStack {
                     let bindings = self.try_match(&branch.0, &scutinee)?;
                     if let Some(bindings) = bindings {
                         let new_env = self.extend_env(bindings);
-                        self.dump_and_switch(Some(new_env), branch.1)?;
+                        self.dump_and_switch(Some(new_env), branch.1, Some(op.span))?;
                         found_match = true;
                         break;
                     }
@@ -316,7 +339,7 @@ impl ExecutionStack {
                     Value::Boolean(b) => {
                         if b {
                             self.jump_past(end)?;
-                            self.dump_and_switch(None, body)?;
+                            self.dump_and_switch(None, body, Some(op.span))?;
                         }
                     }
                     _ => {
@@ -371,7 +394,7 @@ impl ExecutionStack {
         }
 
         let new_env = self.extend_env(closure.params.into_iter().zip(args.into_iter()));
-        self.dump_and_switch(Some(new_env), closure.body)?;
+        self.dump_and_switch(Some(new_env), closure.body, Some(span))?;
 
         Ok(())
     }

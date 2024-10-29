@@ -2,10 +2,12 @@ use super::{CodeMirror, RenderedValue, ValueOrError};
 use crate::bindings::create_split;
 use crate::VERSION;
 use html::Div;
-use leptos::SpecialNonReactiveZone;
 use leptos::*;
 use scamper_rs::{interpreter::Output, Engine};
 use web_sys::HtmlElement;
+
+#[cfg(debug_assertions)]
+use leptos::SpecialNonReactiveZone;
 
 const STORAGE_KEY: &str = "scamper_code";
 
