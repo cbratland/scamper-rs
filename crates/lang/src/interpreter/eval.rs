@@ -540,6 +540,9 @@ impl Runner {
         let Some(stmt) = self.stmts.next() else {
             return Ok(());
         };
+
+        self.current_stmt += 1;
+
         match stmt.kind {
             StatementKind::Binding { name, body } => {
                 self.step_define(name, body)?;
@@ -557,7 +560,6 @@ impl Runner {
                 self.step_struct(id, fields)?;
             }
         }
-        self.current_stmt += 1;
 
         Ok(())
     }

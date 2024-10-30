@@ -1,9 +1,12 @@
 use crate::ast::Span;
 
+fn count_lines_up_to(s: &str, up_to: usize) -> usize {
+    s[..up_to].chars().filter(|&c| c == '\n').count() + 1
+}
+
 #[derive(Debug, Clone)]
 pub struct RuntimeError {
     pub message: String,
-    // pub code // TODO: errors should have codes
     pub span: Option<Span>,
 }
 
@@ -24,8 +27,8 @@ impl RuntimeError {
             let source_up_to_start = &src[..loc];
             let source_up_to_end = &src[..end];
 
-            let start_line = bytecount::count(source_up_to_start.as_bytes(), b'\n') + 1;
-            let end_line = bytecount::count(source_up_to_end.as_bytes(), b'\n') + 1;
+            let start_line = count_lines_up_to(src, loc);
+            let end_line = count_lines_up_to(src, end);
 
             let start_col = loc - source_up_to_start.rfind('\n').unwrap_or(0);
             let end_col = end - source_up_to_end.rfind('\n').unwrap_or(0) - 1;
