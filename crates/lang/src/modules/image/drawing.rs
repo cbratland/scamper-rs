@@ -1,8 +1,8 @@
 use scamper_macros::{function, ForeignValue};
 
-use super::color::Color;
+use super::{color::Color, Rgb};
 use crate::{
-    ast::{Contract, FromValue, List, Value},
+    ast::{Contract, FromValue, List, NonNegative, Value},
     interpreter::{Env, RuntimeError},
 };
 
@@ -24,6 +24,25 @@ pub fn add_to(env: &mut Env) {
     env.register("overlay/offset", overlay_offset);
     env.register("rotate", rotate);
     env.register("with-dash", with_dash);
+
+    // extended functions
+    env.register("solid-square", solid_square);
+    env.register("outlined-square", outlined_square);
+    env.register("solid-rectangle", solid_rectangle);
+    env.register("outlined-rectangle", outlined_rectangle);
+    env.register("solid-circle", solid_circle);
+    env.register("outlined-circle", outlined_circle);
+    env.register("solid-ellipse", solid_ellipse);
+    env.register("outlined-ellipse", outlined_ellipse);
+    env.register("solid-triangle", solid_triangle);
+    env.register("outlined-triangle", outlined_triangle);
+    env.register("solid-isosceles-triangle", solid_isosceles_triangle);
+    env.register("outlined-isosceles-triangle", outlined_isosceles_triangle);
+
+    env.register("image-width", image_width);
+    env.register("image-height", image_height);
+    env.register("image-color", image_color);
+    env.register("image-recolor", image_recolor);
 }
 
 #[derive(Debug, Clone)]
@@ -202,6 +221,29 @@ impl Drawing {
             Drawing::WithDash(d) => d.height,
         }
     }
+
+    pub fn color(&self) -> Rgb {
+        let drawings = match self {
+            Drawing::Ellipse(e) => return e.color.to_rgb(),
+            Drawing::Rectangle(r) => return r.color.to_rgb(),
+            Drawing::Triangle(t) => return t.color.to_rgb(),
+            Drawing::Path(p) => return p.color.to_rgb(),
+            Drawing::Beside(b) => b.drawings.clone(),
+            Drawing::Above(a) => a.drawings.clone(),
+            Drawing::Overlay(o) => o.drawings.clone(),
+            Drawing::OverlayOffset(o) => vec![*o.drawing1.clone(), *o.drawing2.clone()],
+            Drawing::Rotate(r) => return r.drawing.color(),
+            Drawing::WithDash(d) => return d.drawing.color(),
+        };
+
+        let mut avg = drawings
+            .first()
+            .map_or(Rgb::new(0.0, 0.0, 0.0), |d| d.color());
+        for d in drawings.iter().skip(1) {
+            avg = avg.average(d.color())
+        }
+        avg
+    }
 }
 
 #[function]
@@ -209,102 +251,68 @@ fn drawing_q(x: Value) -> bool {
     Drawing::from_value(&x).is_some()
 }
 
-fn ellipse_prim(
-    width: f64,
-    height: f64,
-    mode: Mode,
-    color: Color,
-) -> Result<Drawing, RuntimeError> {
-    if width <= 0.0 || height <= 0.0 {
-        return Err(RuntimeError::new(
-            "Invalid width or height".to_string(),
-            None,
-        ));
-    }
-    Ok(Drawing::Ellipse(Shape {
+#[function(contract(0, NonNegative), contract(1, NonNegative))]
+fn ellipse(width: f64, height: f64, mode: Mode, color: Color) -> Drawing {
+    Drawing::Ellipse(Shape {
         width,
         height,
         mode,
         color,
-    }))
+    })
 }
 
-#[function]
-fn ellipse(width: f64, height: f64, mode: Mode, color: Color) -> Result<Drawing, RuntimeError> {
-    ellipse_prim(width, height, mode, color)
+#[function(contract(0, NonNegative))]
+fn circle(radius: f64, mode: Mode, color: Color) -> Drawing {
+    let diameter = radius * 2.0;
+    Drawing::Ellipse(Shape {
+        width: diameter,
+        height: diameter,
+        mode,
+        color,
+    })
 }
 
-#[function]
-fn circle(radius: f64, mode: Mode, color: Color) -> Result<Drawing, RuntimeError> {
-    ellipse_prim(radius * 2.0, radius * 2.0, mode, color)
-}
-
-fn rectangle_prim(
-    width: f64,
-    height: f64,
-    mode: Mode,
-    color: Color,
-) -> Result<Drawing, RuntimeError> {
-    if width <= 0.0 || height <= 0.0 {
-        return Err(RuntimeError::new(
-            "Invalid width or height".to_string(),
-            None,
-        ));
-    }
-    Ok(Drawing::Rectangle(Shape {
+#[function(contract(0, NonNegative), contract(1, NonNegative))]
+fn rectangle(width: f64, height: f64, mode: Mode, color: Color) -> Drawing {
+    Drawing::Rectangle(Shape {
         width,
         height,
         mode,
         color,
-    }))
+    })
 }
 
-#[function]
-fn rectangle(width: f64, height: f64, mode: Mode, color: Color) -> Result<Drawing, RuntimeError> {
-    rectangle_prim(width, height, mode, color)
+#[function(contract(0, NonNegative))]
+fn square(size: f64, mode: Mode, color: Color) -> Drawing {
+    Drawing::Rectangle(Shape {
+        width: size,
+        height: size,
+        mode,
+        color,
+    })
 }
 
-#[function]
-fn square(size: f64, mode: Mode, color: Color) -> Result<Drawing, RuntimeError> {
-    rectangle_prim(size, size, mode, color)
+#[function(contract(0, NonNegative))]
+fn triangle(length: f64, mode: Mode, color: Color) -> Drawing {
+    Drawing::Triangle(Shape {
+        width: length,
+        height: length * f64::sqrt(3.0) / 2.0,
+        mode,
+        color,
+    })
 }
 
-fn triangle_prim(
-    width: f64,
-    height: f64,
-    mode: Mode,
-    color: Color,
-) -> Result<Drawing, RuntimeError> {
-    if width <= 0.0 || height <= 0.0 {
-        return Err(RuntimeError::new(
-            "Invalid width or height".to_string(),
-            None,
-        ));
-    }
-    Ok(Drawing::Triangle(Shape {
+#[function(contract(0, NonNegative), contract(1, NonNegative))]
+fn isosceles_triangle(width: f64, height: f64, mode: Mode, color: Color) -> Drawing {
+    Drawing::Triangle(Shape {
         width,
         height,
         mode,
         color,
-    }))
+    })
 }
 
-#[function]
-fn triangle(length: f64, mode: Mode, color: Color) -> Result<Drawing, RuntimeError> {
-    triangle_prim(length, length * f64::sqrt(3.0) / 2.0, mode, color)
-}
-
-#[function]
-fn isosceles_triangle(
-    width: f64,
-    height: f64,
-    mode: Mode,
-    color: Color,
-) -> Result<Drawing, RuntimeError> {
-    triangle_prim(width, height, mode, color)
-}
-
-#[function]
+#[function(contract(0, NonNegative), contract(1, NonNegative))]
 fn path(
     width: f64,
     height: f64,
@@ -312,12 +320,6 @@ fn path(
     mode: Mode,
     color: Color,
 ) -> Result<Drawing, RuntimeError> {
-    if width <= 0.0 || height <= 0.0 {
-        return Err(RuntimeError::new(
-            "Invalid width or height".to_string(),
-            None,
-        ));
-    }
     let points = points
         .values()
         .iter()
@@ -348,12 +350,8 @@ fn path(
     }))
 }
 
-fn beside_above_prim(
-    beside: bool,
-    align: Align,
-    drawings: Vec<Drawing>,
-) -> Result<BesideAbove, RuntimeError> {
-    Ok(BesideAbove {
+fn beside_above_prim(beside: bool, align: Align, drawings: Vec<Drawing>) -> BesideAbove {
+    BesideAbove {
         width: if beside {
             drawings.iter().map(|d| d.width()).sum()
         } else {
@@ -374,43 +372,39 @@ fn beside_above_prim(
         },
         align,
         drawings,
-    })
+    }
 }
 
-fn beside_prim(align: Align, drawings: Vec<Drawing>) -> Result<Drawing, RuntimeError> {
-    Ok(Drawing::Beside(beside_above_prim(true, align, drawings)?))
+fn beside_prim(align: Align, drawings: Vec<Drawing>) -> Drawing {
+    Drawing::Beside(beside_above_prim(true, align, drawings))
+}
+
+fn above_prim(align: Align, drawings: Vec<Drawing>) -> Drawing {
+    Drawing::Above(beside_above_prim(false, align, drawings))
 }
 
 #[function]
-fn beside(drawings: &[Drawing]) -> Result<Drawing, RuntimeError> {
+fn beside(drawings: &[Drawing]) -> Drawing {
     beside_prim(Align::Center, drawings.to_vec())
 }
 
-#[function]
-fn beside_align(align: Align, drawings: &[Drawing]) -> Result<Drawing, RuntimeError> {
+#[function(contract(0, VAlign))]
+fn beside_align(align: Align, drawings: &[Drawing]) -> Drawing {
     beside_prim(align, drawings.to_vec())
 }
 
-fn above_prim(align: Align, drawings: Vec<Drawing>) -> Result<Drawing, RuntimeError> {
-    Ok(Drawing::Above(beside_above_prim(false, align, drawings)?))
-}
-
 #[function]
-fn above(drawings: &[Drawing]) -> Result<Drawing, RuntimeError> {
+fn above(drawings: &[Drawing]) -> Drawing {
     above_prim(Align::Middle, drawings.to_vec())
 }
 
-#[function]
-fn above_align(align: Align, drawings: &[Drawing]) -> Result<Drawing, RuntimeError> {
+#[function(contract(0, HAlign))]
+fn above_align(align: Align, drawings: &[Drawing]) -> Drawing {
     above_prim(align, drawings.to_vec())
 }
 
-fn overlay_align_prim(
-    x_align: Align,
-    y_align: Align,
-    drawings: Vec<Drawing>,
-) -> Result<Drawing, RuntimeError> {
-    Ok(Drawing::Overlay(Overlay {
+fn overlay_align_prim(x_align: Align, y_align: Align, drawings: Vec<Drawing>) -> Drawing {
+    Drawing::Overlay(Overlay {
         width: drawings
             .iter()
             .map(|d| d.width())
@@ -424,27 +418,23 @@ fn overlay_align_prim(
         x_align,
         y_align,
         drawings,
-    }))
+    })
 }
 
 #[function]
-fn overlay(drawings: &[Drawing]) -> Result<Drawing, RuntimeError> {
+fn overlay(drawings: &[Drawing]) -> Drawing {
     overlay_align_prim(Align::Middle, Align::Center, drawings.to_vec())
 }
 
 #[function(contract(0, HAlign), contract(1, VAlign))]
-fn overlay_align(
-    x_align: Align,
-    y_align: Align,
-    drawings: &[Drawing],
-) -> Result<Drawing, RuntimeError> {
+fn overlay_align(x_align: Align, y_align: Align, drawings: &[Drawing]) -> Drawing {
     overlay_align_prim(x_align, y_align, drawings.to_vec())
 }
 
 #[function]
-fn overlay_offset(dx: f64, dy: f64, d1: Drawing, d2: Drawing) -> Result<Drawing, RuntimeError> {
+fn overlay_offset(dx: f64, dy: f64, d1: Drawing, d2: Drawing) -> Drawing {
     // todo: (from upstream) what if d2 is actually bigger than d1? Then the calculation needs to mirror!
-    Ok(Drawing::OverlayOffset(OverlayOffset {
+    Drawing::OverlayOffset(OverlayOffset {
         width: if d1.width() > d2.width() {
             if dx >= 0.0 {
                 f64::max(d1.width(), d2.width() + f64::abs(dx))
@@ -475,7 +465,7 @@ fn overlay_offset(dx: f64, dy: f64, d1: Drawing, d2: Drawing) -> Result<Drawing,
         dy,
         drawing1: Box::new(d1),
         drawing2: Box::new(d2),
-    }))
+    })
 }
 
 #[function]
@@ -544,4 +534,192 @@ fn with_dash(dash_spec: List, drawing: Drawing) -> Result<Drawing, RuntimeError>
         dash_spec,
         drawing: Box::new(drawing),
     }))
+}
+
+#[function]
+fn solid_square(length: f64, color: Color) -> Drawing {
+    Drawing::Rectangle(Shape {
+        width: length,
+        height: length,
+        mode: Mode::Solid,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative))]
+fn outlined_square(length: f64, color: Color) -> Drawing {
+    Drawing::Rectangle(Shape {
+        width: length,
+        height: length,
+        mode: Mode::Outline,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative), contract(1, NonNegative))]
+fn solid_rectangle(width: f64, height: f64, color: Color) -> Drawing {
+    Drawing::Rectangle(Shape {
+        width,
+        height,
+        mode: Mode::Solid,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative), contract(1, NonNegative))]
+fn outlined_rectangle(width: f64, height: f64, color: Color) -> Drawing {
+    Drawing::Rectangle(Shape {
+        width,
+        height,
+        mode: Mode::Outline,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative))]
+fn solid_circle(radius: f64, color: Color) -> Drawing {
+    let diameter = radius * 2.0;
+    Drawing::Ellipse(Shape {
+        width: diameter,
+        height: diameter,
+        mode: Mode::Solid,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative))]
+fn outlined_circle(radius: f64, color: Color) -> Drawing {
+    let diameter = radius * 2.0;
+    Drawing::Ellipse(Shape {
+        width: diameter,
+        height: diameter,
+        mode: Mode::Outline,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative), contract(1, NonNegative))]
+fn solid_ellipse(width: f64, height: f64, color: Color) -> Drawing {
+    Drawing::Ellipse(Shape {
+        width,
+        height,
+        mode: Mode::Solid,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative), contract(1, NonNegative))]
+fn outlined_ellipse(width: f64, height: f64, color: Color) -> Drawing {
+    Drawing::Ellipse(Shape {
+        width,
+        height,
+        mode: Mode::Outline,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative))]
+fn solid_triangle(length: f64, color: Color) -> Drawing {
+    Drawing::Triangle(Shape {
+        width: length,
+        height: length * f64::sqrt(3.0) / 2.0,
+        mode: Mode::Solid,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative))]
+fn outlined_triangle(length: f64, color: Color) -> Drawing {
+    Drawing::Triangle(Shape {
+        width: length,
+        height: length * f64::sqrt(3.0) / 2.0,
+        mode: Mode::Outline,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative), contract(1, NonNegative))]
+fn solid_isosceles_triangle(width: f64, height: f64, color: Color) -> Drawing {
+    Drawing::Triangle(Shape {
+        width,
+        height,
+        mode: Mode::Solid,
+        color,
+    })
+}
+
+#[function(contract(0, NonNegative), contract(1, NonNegative))]
+fn outlined_isosceles_triangle(width: f64, height: f64, color: Color) -> Drawing {
+    Drawing::Triangle(Shape {
+        width,
+        height,
+        mode: Mode::Outline,
+        color,
+    })
+}
+
+#[function]
+fn image_width(drawing: Drawing) -> f64 {
+    drawing.width()
+}
+
+#[function]
+fn image_height(drawing: Drawing) -> f64 {
+    drawing.height()
+}
+
+#[function]
+fn image_color(drawing: Drawing) -> Rgb {
+    drawing.color()
+}
+
+fn image_recolor_prim(drawing: Drawing, color: Color) -> Drawing {
+    match drawing {
+        Drawing::Rectangle(s) => Drawing::Rectangle(Shape { color, ..s }),
+        Drawing::Ellipse(s) => Drawing::Ellipse(Shape { color, ..s }),
+        Drawing::Triangle(s) => Drawing::Triangle(Shape { color, ..s }),
+        Drawing::Path(p) => Drawing::Path(Path { color, ..p }),
+        Drawing::Above(a) => Drawing::Above(BesideAbove {
+            drawings: a
+                .drawings
+                .into_iter()
+                .map(|d| image_recolor_prim(d, color.clone()))
+                .collect(),
+            ..a
+        }),
+        Drawing::Beside(b) => Drawing::Beside(BesideAbove {
+            drawings: b
+                .drawings
+                .into_iter()
+                .map(|d| image_recolor_prim(d, color.clone()))
+                .collect(),
+            ..b
+        }),
+        Drawing::Overlay(o) => Drawing::Overlay(Overlay {
+            drawings: o
+                .drawings
+                .into_iter()
+                .map(|d| image_recolor_prim(d, color.clone()))
+                .collect(),
+            ..o
+        }),
+        Drawing::OverlayOffset(o) => Drawing::OverlayOffset(OverlayOffset {
+            drawing1: Box::new(image_recolor_prim(*o.drawing1, color.clone())),
+            drawing2: Box::new(image_recolor_prim(*o.drawing2, color.clone())),
+            ..o
+        }),
+        Drawing::Rotate(r) => Drawing::Rotate(Rotate {
+            drawing: Box::new(image_recolor_prim(*r.drawing, color)),
+            ..r
+        }),
+        Drawing::WithDash(w) => Drawing::WithDash(WithDash {
+            drawing: Box::new(image_recolor_prim(*w.drawing, color)),
+            ..w
+        }),
+    }
+}
+
+#[function]
+fn image_recolor(drawing: Drawing, color: Color) -> Drawing {
+    image_recolor_prim(drawing, color)
 }

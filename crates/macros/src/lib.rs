@@ -1,23 +1,24 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, DeriveInput, FnArg, ItemFn, Pat, ReturnType, Type, TypeSlice};
+use syn::{parse_macro_input, DeriveInput, Expr, FnArg, ItemFn, Pat, ReturnType, Type, TypeSlice};
 
 use syn::{parse::Parse, parse::ParseStream, punctuated::Punctuated, Lit, Meta, Token};
 
-struct TypeCheckAttr {
+#[derive(Debug)]
+struct ContractAttr {
     index: usize,
-    checker_type: Type,
+    checker_type: Expr,
 }
 
-struct TypeCheckSpec {
-    attrs: Vec<TypeCheckAttr>,
+struct ContractSpec {
+    attrs: Vec<ContractAttr>,
 }
 
-impl Parse for TypeCheckSpec {
+impl Parse for ContractSpec {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let parsed: Punctuated<Meta, Token![,]> = Punctuated::parse_terminated(input)?;
 
-        let attrs = parsed
+        let attrs: Vec<_> = parsed
             .into_iter()
             .filter_map(|meta| {
                 if let Meta::List(list) = meta {
@@ -25,13 +26,13 @@ impl Parse for TypeCheckSpec {
                         let content = list.parse_args_with(|content: ParseStream| {
                             let index: Lit = content.parse()?;
                             content.parse::<Token![,]>()?;
-                            let checker_type: Type = content.parse()?;
+                            let checker_type: Expr = content.parse()?;
                             Ok((index, checker_type))
                         });
 
                         if let Ok((Lit::Int(index), checker_type)) = content {
                             if let Ok(index) = index.base10_parse::<usize>() {
-                                return Some(TypeCheckAttr {
+                                return Some(ContractAttr {
                                     index,
                                     checker_type,
                                 });
@@ -43,13 +44,13 @@ impl Parse for TypeCheckSpec {
             })
             .collect();
 
-        Ok(TypeCheckSpec { attrs })
+        Ok(ContractSpec { attrs })
     }
 }
 
 #[proc_macro_attribute]
 pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let type_spec = parse_macro_input!(attr as TypeCheckSpec);
+    let type_spec = parse_macro_input!(attr as ContractSpec);
     let input_fn = parse_macro_input!(item as ItemFn);
     let fn_name = &input_fn.sig.ident;
     let fn_args = &input_fn.sig.inputs;
@@ -158,6 +159,8 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     } else {
         quote! {
+            #(#type_checks)*
+
            if args.len() != #arg_count {
                return Err(crate::interpreter::RuntimeError {
                    message: format!("Expected {} arguments, got {}", #arg_count, args.len()),

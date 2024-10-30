@@ -7,7 +7,7 @@ mod list;
 mod number;
 pub use function::Function;
 pub use list::{List, Vector};
-pub use number::Number;
+pub use number::{NonNegative, Number};
 
 pub type NativeFnSignature = dyn Fn(&[Value]) -> Result<Value, RuntimeError>;
 

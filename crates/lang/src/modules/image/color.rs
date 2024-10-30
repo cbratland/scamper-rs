@@ -105,6 +105,15 @@ impl Rgb {
             alpha: self.alpha,
         }
     }
+
+    pub fn average(&self, other: Rgb) -> Rgb {
+        Rgb {
+            red: (self.red + other.red) / 2.0,
+            green: (self.green + other.green) / 2.0,
+            blue: (self.blue + other.blue) / 2.0,
+            alpha: (self.alpha + other.alpha) / 2.0,
+        }
+    }
 }
 
 impl Display for Rgb {
@@ -194,11 +203,23 @@ impl Display for Hsv {
 }
 
 #[derive(Debug, Clone)]
-pub struct Color(String);
+pub struct Color(Rgb);
 
 impl Color {
+    pub fn from_rgb(rgb: Rgb) -> Self {
+        Self(rgb)
+    }
+
+    pub fn from_string(string: impl AsRef<str>) -> Option<Self> {
+        Rgb::from_name(string).map(|v| Self(v))
+    }
+
+    pub fn to_rgb(&self) -> Rgb {
+        self.0
+    }
+
     pub fn to_string(&self) -> String {
-        self.0.clone()
+        self.0.to_string()
     }
 }
 
@@ -207,16 +228,16 @@ impl FromValue for Color {
         match value {
             Value::Struct(_) => {
                 if let Some(rgb) = Rgb::from_value(value) {
-                    Some(Self(rgb.to_string()))
+                    Some(Self(rgb))
                 } else if let Some(hsv) = Hsv::from_value(value) {
-                    Some(Self(hsv.to_rgb().to_string()))
+                    Some(Self(hsv.to_rgb()))
                 } else {
                     None
                 }
             }
             Value::String(str) => {
-                if Rgb::from_name(str).is_some() {
-                    Some(Self(str.clone()))
+                if let Some(rgb) = Rgb::from_name(str) {
+                    Some(Self(rgb))
                 } else {
                     None
                 }
@@ -503,10 +524,5 @@ fn rgb_subtract(rgb: Rgb, rgb2: Rgb) -> Rgb {
 
 #[function]
 fn rgb_average(rgb: Rgb, rgb2: Rgb) -> Rgb {
-    Rgb {
-        red: (rgb.red + rgb2.red) / 2.0,
-        green: (rgb.green + rgb2.green) / 2.0,
-        blue: (rgb.blue + rgb2.blue) / 2.0,
-        alpha: (rgb.alpha + rgb2.alpha) / 2.0,
-    }
+    rgb.average(rgb2)
 }

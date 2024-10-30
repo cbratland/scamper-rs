@@ -1,5 +1,16 @@
-use super::{FromValue, IntoValue, Value};
+use super::{Contract, FromValue, IntoValue, Value};
 use std::ops::{Add, Div, Mul, Rem, Sub};
+
+pub struct NonNegative;
+impl Contract for NonNegative {
+    fn check(&self, value: &Value) -> bool {
+        value.numeric().map_or(false, |s| s >= 0.0)
+    }
+
+    fn name(&self) -> &'static str {
+        "non-negative number"
+    }
+}
 
 /// A generic number type that can be converted to and from `Value`.
 #[derive(Copy, Clone)]
