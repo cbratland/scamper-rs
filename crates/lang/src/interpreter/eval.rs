@@ -615,70 +615,13 @@ impl Runner {
             assert_not_reserved(field)?;
         }
 
-        let pred_id = id.clone();
-        let pred_fn = move |args: &[Value]| {
-            if args.len() != 1 {
-                return Err(RuntimeError::new(
-                    format!("expected 1 argument, found {}", args.len()),
-                    None,
-                ));
-            }
-            Ok(Value::Boolean(match &args[0] {
-                Value::Struct(s) => s.kind == pred_id,
-                _ => false,
-            }))
+        let s = Struct {
+            kind: id,
+            fields,
+            values: vec![],
         };
-        self.env
-            .borrow_mut()
-            .set(format!("{id}?"), Value::Function(NativeFn::new(pred_fn)));
 
-        let ctor_id = id.clone();
-        let ctor_fields = fields.clone();
-        let ctor_fn = move |args: &[Value]| {
-            let target_args = ctor_fields.len();
-            if args.len() != target_args {
-                return Err(RuntimeError::new(
-                    format!("expected {target_args} arguments, found {}", args.len()),
-                    None,
-                ));
-            }
-            Ok(Value::Struct(Struct {
-                kind: ctor_id.clone(),
-                fields: ctor_fields.clone(),
-                values: args.to_vec(),
-            }))
-        };
-        self.env
-            .borrow_mut()
-            .set(id.clone(), Value::Function(NativeFn::new(ctor_fn)));
-
-        for (field_idx, field) in fields.iter().enumerate() {
-            let field_name = format!("{id}-{field}");
-            let field_id = id.clone();
-            let field_fn = move |args: &[Value]| {
-                if args.len() != 1 {
-                    return Err(RuntimeError::new(
-                        format!("expected 1 argument, found {}", args.len()),
-                        None,
-                    ));
-                }
-                match &args[0] {
-                    Value::Struct(s) => {
-                        if s.kind == field_id {
-                            return Ok(s.values[field_idx].clone());
-                        }
-                    }
-                    _ => {}
-                };
-                Err(RuntimeError::new(
-                    format!("expected {} struct", field_id),
-                    None,
-                ))
-            };
-            self.env
-                .borrow_mut()
-                .set(field_name, Value::Function(NativeFn::new(field_fn)));
-        }
+        s.add_to(&mut self.env.borrow_mut(), None, None);
 
         Ok(())
     }

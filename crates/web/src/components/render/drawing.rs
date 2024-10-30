@@ -1,8 +1,8 @@
 use leptos::html::Canvas;
 use leptos::*;
 use scamper_rs::modules::image::{Align, Drawing, Mode};
-use wasm_bindgen::JsCast;
-use web_sys::CanvasRenderingContext2d;
+use wasm_bindgen::{JsCast, JsValue};
+use web_sys::{js_sys::Array, CanvasRenderingContext2d};
 
 fn render(x: f64, y: f64, drawing: &Drawing, canvas: &leptos::HtmlElement<Canvas>) {
     let context = canvas
@@ -126,6 +126,64 @@ fn render(x: f64, y: f64, drawing: &Drawing, canvas: &leptos::HtmlElement<Canvas
                 );
                 y_offset += drawing.height();
             }
+        }
+        Drawing::Overlay(overlay) => {
+            for drawing in overlay.drawings.iter().rev() {
+                render(
+                    match overlay.x_align {
+                        Align::Left => x,
+                        Align::Right => x + overlay.width - drawing.width(),
+                        _ => x + (overlay.width - drawing.width()) / 2.0,
+                    },
+                    match overlay.y_align {
+                        Align::Top => y,
+                        Align::Bottom => y + overlay.height - drawing.height(),
+                        _ => y + (overlay.height - drawing.height()) / 2.0,
+                    },
+                    drawing,
+                    canvas,
+                );
+            }
+        }
+        Drawing::OverlayOffset(overlay) => {
+            let x1 = if overlay.dx > 0.0 {
+                x
+            } else {
+                x + f64::abs(overlay.dx)
+            };
+            let y1 = if overlay.dy > 0.0 {
+                y
+            } else {
+                y + f64::abs(overlay.dy)
+            };
+            let x2 = if overlay.dx > 0.0 { x + overlay.dx } else { x };
+            let y2 = if overlay.dy > 0.0 { y + overlay.dy } else { y };
+            render(x2, y2, &overlay.drawing2, canvas);
+            render(x1, y1, &overlay.drawing1, canvas);
+        }
+        Drawing::Rotate(rotate) => {
+            let center_x = x + rotate.width / 2.0;
+            let center_y = y + rotate.height / 2.0;
+            let angle = rotate.angle.to_radians();
+
+            context.translate(center_x, center_y).unwrap();
+            context.rotate(angle).unwrap();
+            context.translate(-center_x, -center_y).unwrap();
+
+            render(x, y, &rotate.drawing, canvas);
+
+            context.translate(center_x, center_y).unwrap();
+            context.rotate(-angle).unwrap();
+            context.translate(-center_x, -center_y).unwrap();
+        }
+        Drawing::WithDash(dash) => {
+            context
+                .set_line_dash(&JsValue::from(dash.dash_spec.clone()))
+                .unwrap();
+            render(x, y, &dash.drawing, canvas);
+            context
+                .set_line_dash(&JsValue::from(&Array::new()))
+                .unwrap();
         }
     }
 }

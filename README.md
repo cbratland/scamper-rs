@@ -18,12 +18,14 @@ but there's also a clone of the original scamper web interface that compiles the
 bun run serve
 ```
 
-but you might need to set up [leptos](https://leptos.dev) and trunk first (the leptos documentation book walks through this), and [bun](https://bun.sh) (better than node).
+but you might need to set up [bun](https://bun.sh) (better than node), [leptos](https://leptos.dev) and trunk first (the leptos documentation book walks through this).
 
 ## missing stuff
 
-currently only the language features, prelude, and some stuff from the image library is implemented. some big things that are missing:
+currently only the language features, prelude, and the image library are implemented. some things that are missing:
 
+- mutable vectors (e.g. `vector-set!`)
+- reactive image files
 - music functionality
 - the debugging features of the original scamper
 - all the other scamper built in libraries

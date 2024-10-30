@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 bytecount = "0.6"
+const_format = "0.2.33"
 rand = "0.8.5"
 scamper-macros = { path = "../macros" }

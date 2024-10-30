@@ -1,6 +1,5 @@
 mod value;
 
-pub use value::Number;
 pub use value::*;
 
 #[derive(Debug, PartialEq)]

@@ -1191,6 +1191,7 @@ name = "scamper-rs"
 version = "0.1.0"
 dependencies = [
  "bytecount",
+ "const_format",
  "rand",
  "scamper-macros",
 ]

@@ -1,9 +1,10 @@
 use crate::interpreter::Env;
 
 mod color;
+mod color_names;
 mod drawing;
 
-pub use color::Rgb;
+pub use color::{Color, Hsv, Rgb};
 pub use drawing::{Align, Drawing, Mode};
 
 pub fn add_to(env: &mut Env) {

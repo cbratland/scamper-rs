@@ -61,6 +61,121 @@ impl PartialEq for Struct {
     }
 }
 
+pub trait Contract {
+    fn check(&self, value: &Value) -> bool;
+    fn name(&self) -> &'static str;
+}
+
+impl Struct {
+    // defaults is an array of things of length n covering the last n field values
+    pub fn add_to(
+        &self,
+        env: &mut Env,
+        types: Option<Vec<Option<Box<dyn Contract>>>>,
+        defaults: Option<Vec<Value>>,
+    ) {
+        let pred_id = self.kind.clone();
+        let pred_fn = move |args: &[Value]| {
+            if args.len() != 1 {
+                return Err(RuntimeError::new(
+                    format!("expected 1 argument, found {}", args.len()),
+                    None,
+                ));
+            }
+            Ok(Value::Boolean(match &args[0] {
+                Value::Struct(s) => s.kind == pred_id,
+                _ => false,
+            }))
+        };
+        env.set(
+            format!("{}?", self.kind),
+            Value::Function(NativeFn::new(pred_fn)),
+        );
+
+        let ctor_id = self.kind.clone();
+        let ctor_fields = self.fields.clone();
+        let ctor_defaults = defaults.clone();
+        let defaults_len = ctor_defaults.as_ref().map_or(0, |f| f.len());
+        let ctor_types = types;
+        let ctor_fn = move |args: &[Value]| {
+            let max_args = ctor_fields.len();
+            let min_args = ctor_fields.len() - defaults_len;
+            if args.len() < min_args || args.len() > max_args {
+                if min_args == max_args {
+                    return Err(RuntimeError::new(
+                        format!("expected {max_args} arguments, found {}", args.len()),
+                        None,
+                    ));
+                } else {
+                    return Err(RuntimeError::new(
+                        format!(
+                            "expected {min_args} to {max_args} arguments, found {}",
+                            args.len()
+                        ),
+                        None,
+                    ));
+                }
+            }
+
+            if let Some(types) = &ctor_types {
+                for (idx, arg) in args.iter().enumerate() {
+                    if idx >= types.len() {
+                        break;
+                    }
+                    if let Some(typ) = &types[idx] {
+                        if !typ.check(arg) {
+                            return Err(RuntimeError::new(
+                                format!("argument {} must be a {}", idx + 1, typ.name()),
+                                None,
+                            ));
+                        }
+                    }
+                }
+            }
+
+            // map in the defaults with args so that values is length max_args
+            let values = args
+                .iter()
+                .cloned()
+                .chain(ctor_defaults.clone().unwrap_or_default())
+                .take(max_args)
+                .collect();
+            Ok(Value::Struct(Struct {
+                kind: ctor_id.clone(),
+                fields: ctor_fields.clone(),
+                values,
+            }))
+        };
+        env.set(self.kind.clone(), Value::Function(NativeFn::new(ctor_fn)));
+
+        for (field_idx, field) in self.fields.iter().enumerate() {
+            let field_name = format!("{}-{field}", self.kind);
+            let field_id = self.kind.clone();
+            let field_fn = move |args: &[Value]| {
+                if args.len() != 1 {
+                    return Err(RuntimeError::new(
+                        format!("expected 1 argument, found {}", args.len()),
+                        None,
+                    ));
+                }
+                match &args[0] {
+                    Value::Struct(s) => {
+                        if s.kind == field_id {
+                            return Ok(s.values[field_idx].clone());
+                        }
+                    }
+                    _ => {}
+                };
+                Err(RuntimeError::new(
+                    format!("expected {} struct", field_id),
+                    None,
+                ))
+            };
+            env.set(field_name, Value::Function(NativeFn::new(field_fn)));
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Boolean(bool),
@@ -90,6 +205,21 @@ impl Value {
             Value::Null => false,
             Value::Void => false,
             _ => true,
+        }
+    }
+
+    pub fn numeric(&self) -> Option<f64> {
+        match self {
+            Value::Integer(i) => Some(*i as f64),
+            Value::Float(f) => Some(*f),
+            _ => None,
+        }
+    }
+
+    pub fn string(&self) -> Option<&str> {
+        match self {
+            Value::String(s) => Some(s),
+            _ => None,
         }
     }
 }
