@@ -86,7 +86,7 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         quote! {
             if !#checker_type.check(&args[#index]) {
-                return Err(RuntimeError::new(
+                return Err(crate::interpreter::RuntimeError::new(
                     format!("argument {} must be a {}", #index + 1, #checker_type.name()),
                     None,
                 ));
@@ -124,7 +124,7 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
             #(#type_checks)*
 
             if args.len() < #non_slice_count {
-                return Err(RuntimeError {
+                return Err(crate::interpreter::RuntimeError {
                     message: format!("Expected at least {} arguments, got {}", #non_slice_count, args.len()),
                     span: None,
                 });
@@ -134,7 +134,7 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let #non_slice_names = if let Some(value) = <#non_slice_types as crate::ast::FromValue>::from_value(&args[#non_slice_indices]) {
                     value
                 } else {
-                    return Err(RuntimeError {
+                    return Err(crate::interpreter::RuntimeError {
                         message: format!("Failed to convert argument {} to {}", #non_slice_indices, stringify!(#non_slice_types)),
                         span: None,
                     });
@@ -147,19 +147,19 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
                     if let Some(converted) = <#slice_type as crate::ast::FromValue>::from_value(value) {
                         Ok(converted)
                     } else {
-                        Err(RuntimeError {
+                        Err(crate::interpreter::RuntimeError {
                             message: format!("Failed to convert slice item to {}", stringify!(#slice_type)),
                             span: None,
                         })
                     }
                 })
-                .collect::<Result<Vec<_>, RuntimeError>>()?;
+                .collect::<Result<Vec<_>, crate::interpreter::RuntimeError>>()?;
             let #slice_name = &__slice;
         }
     } else {
         quote! {
            if args.len() != #arg_count {
-               return Err(RuntimeError {
+               return Err(crate::interpreter::RuntimeError {
                    message: format!("Expected {} arguments, got {}", #arg_count, args.len()),
                    span: None,
                });
@@ -169,7 +169,7 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
                let #arg_names = if let Some(value) = <#arg_types as crate::ast::FromValue>::from_value(&args[#indices]) {
                    value
                } else {
-                   return Err(RuntimeError {
+                   return Err(crate::interpreter::RuntimeError {
                        message: format!("Failed to convert argument {} to {}", #indices, stringify!(#arg_types)),
                        span: None,
                    });
@@ -189,7 +189,7 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
             if let Some(converted) = result.into_value() {
                 Ok(converted)
             } else {
-                Err(RuntimeError {
+                Err(crate::interpreter::RuntimeError {
                     message: "Failed to convert return value".to_string(),
                     span: None,
                 })
@@ -210,7 +210,7 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
-        fn #fn_name(args: &[Value]) -> Result<Value, RuntimeError> {
+        fn #fn_name(args: &[crate::ast::Value]) -> Result<crate::ast::Value, crate::interpreter::RuntimeError> {
             #conversion
 
             fn #inner_fn_name(#(#arg_names: #arg_types),*) #return_type #fn_block
@@ -230,15 +230,15 @@ pub fn derive_value_conversion(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         impl crate::ast::IntoValue for #name {
-            fn into_value(self) -> Option<Value> {
-                Some(Value::Foreign(std::rc::Rc::new(self)))
+            fn into_value(self) -> Option<crate::ast::Value> {
+                Some(crate::ast::Value::Foreign(std::rc::Rc::new(self)))
             }
         }
 
         impl crate::ast::FromValue for #name {
-            fn from_value(value: &Value) -> Option<Self> {
+            fn from_value(value: &crate::ast::Value) -> Option<Self> {
                 match value {
-                    Value::Foreign(f) => f.downcast_ref::<#name>().cloned(),
+                    crate::ast::Value::Foreign(f) => f.downcast_ref::<#name>().cloned(),
                     _ => None,
                 }
             }

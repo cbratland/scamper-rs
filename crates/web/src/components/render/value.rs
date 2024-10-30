@@ -1,7 +1,8 @@
-use super::{CodeBlock, DrawingView};
+use super::{CodeBlock, DrawingView, LabElementView};
 use leptos::*;
 use scamper_rs::ast::{FromValue, Value};
 use scamper_rs::modules::image::{Drawing, Hsv, Rgb};
+use scamper_rs::modules::lab::LabElement;
 
 #[derive(Debug, Clone)]
 pub enum ValueOrError {
@@ -47,6 +48,11 @@ pub fn RenderedValue(value: ValueOrError) -> impl IntoView {
                 if let Some(drawing) = item.downcast_ref::<Drawing>() {
                     return view! {
                         <DrawingView drawing=drawing.clone() />
+                    }
+                    .into_view();
+                } else if let Some(element) = item.downcast_ref::<LabElement>() {
+                    return view! {
+                        <LabElementView element=element.clone() />
                     }
                     .into_view();
                 }

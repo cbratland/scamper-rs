@@ -599,6 +599,9 @@ impl Runner {
             "image" => {
                 crate::modules::image::add_to(&mut self.env.borrow_mut());
             }
+            "lab" => {
+                crate::modules::lab::add_to(&mut self.env.borrow_mut());
+            }
             _ => {
                 return Err(RuntimeError::new(
                     format!("Module not found: {}", mod_name),
