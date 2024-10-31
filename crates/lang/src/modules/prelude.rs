@@ -1521,7 +1521,7 @@ fn range(args: &[Number]) -> Result<List, RuntimeError> {
     let m = if args.len() == 1 {
         0.0
     } else {
-        args[1].as_f64()
+        args[0].as_f64()
     };
     let n = if args.len() == 1 {
         args[0].as_f64()

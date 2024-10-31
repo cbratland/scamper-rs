@@ -49,4 +49,12 @@ impl Env {
         self.bindings.insert(name.to_string(), value);
         return true;
     }
+
+    pub fn extend(&self, bindings: impl IntoIterator<Item = (String, Value)>) -> Env {
+        let mut new_env = self.clone();
+        for (name, value) in bindings.into_iter() {
+            new_env.set(name.clone(), value.clone());
+        }
+        new_env
+    }
 }

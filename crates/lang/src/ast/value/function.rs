@@ -17,13 +17,21 @@ impl Function {
         }
         match &self._closure {
             Some(closure) => {
-                let mut stack = ExecutionStack::new(
-                    closure
-                        .env
-                        .clone()
-                        .unwrap_or(Rc::new(RefCell::new(Env::new(None)))),
-                    closure.body.clone(),
-                );
+                let env = closure
+                    .env
+                    .clone()
+                    .unwrap_or(Rc::new(RefCell::new(Env::new(None))));
+                let new_env = Rc::new(RefCell::new(
+                    env.borrow().extend(
+                        closure
+                            .params
+                            .clone()
+                            .into_iter()
+                            .zip(args.to_vec().into_iter()),
+                    ),
+                ));
+
+                let mut stack = ExecutionStack::new(new_env, closure.body.clone());
                 stack.run()?;
                 return stack
                     .pop()
