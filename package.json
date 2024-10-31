@@ -6,6 +6,7 @@
 		"build:grammar": "lezer-generator crates/web/js/codemirror/syntax.grammar -o crates/web/js/codemirror/syntax.grammar.js",
 		"build:js": "bun run build:grammar && cd crates/web && bun build ./js/index.ts --outdir ./build",
 		"serve": "bun run build:js && cd crates/web && trunk serve",
+		"serve:release": "bun run build:js && cd crates/web && trunk serve --release",
 		"build": "bun run build:js && cd crates/web && trunk build --release"
 	},
 	"devDependencies": {
