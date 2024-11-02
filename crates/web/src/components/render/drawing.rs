@@ -162,19 +162,19 @@ fn render(x: f64, y: f64, drawing: &Drawing, canvas: &leptos::HtmlElement<Canvas
             render(x1, y1, &overlay.drawing1, canvas);
         }
         Drawing::Rotate(rotate) => {
-            let center_x = x + rotate.width / 2.0;
-            let center_y = y + rotate.height / 2.0;
             let angle = rotate.angle.to_radians();
 
-            context.translate(center_x, center_y).unwrap();
+            context
+                .translate(x + rotate.x_offset, y + rotate.y_offset)
+                .unwrap();
             context.rotate(angle).unwrap();
-            context.translate(-center_x, -center_y).unwrap();
 
-            render(x, y, &rotate.drawing, canvas);
+            render(0.0, 0.0, &rotate.drawing, canvas);
 
-            context.translate(center_x, center_y).unwrap();
             context.rotate(-angle).unwrap();
-            context.translate(-center_x, -center_y).unwrap();
+            context
+                .translate(-(x + rotate.x_offset), -(y + rotate.y_offset))
+                .unwrap();
         }
         Drawing::WithDash(dash) => {
             context
@@ -194,11 +194,9 @@ pub fn DrawingView(drawing: Drawing) -> impl IntoView {
 
     canvas_ref.on_load(move |canvas_ref| {
         let _ = canvas_ref.on_mount(move |canvas| {
-            // Set canvas dimensions
-            canvas.set_width(drawing.width() as u32);
-            canvas.set_height(drawing.height() as u32);
+            canvas.set_width(drawing.width().ceil() as u32);
+            canvas.set_height(drawing.height().ceil() as u32);
 
-            // Get context
             let context = canvas
                 .get_context("2d")
                 .unwrap()

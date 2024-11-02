@@ -166,6 +166,8 @@ pub struct Rotate {
     pub width: f64,
     pub height: f64,
     pub angle: f64,
+    pub x_offset: f64,
+    pub y_offset: f64,
     pub drawing: Box<Drawing>,
 }
 
@@ -243,6 +245,158 @@ impl Drawing {
             avg = avg.average(d.color())
         }
         avg
+    }
+
+    pub fn points(&self) -> Vec<(f64, f64)> {
+        match self {
+            Drawing::Ellipse(e) => {
+                let mut points = Vec::new();
+                let n = 100;
+                for i in 0..n {
+                    let t = 2.0 * std::f64::consts::PI * i as f64 / n as f64;
+                    points.push((0.5 * e.width * t.cos(), 0.5 * e.height * t.sin()));
+                }
+                points
+            }
+            Drawing::Rectangle(r) => {
+                vec![
+                    (0.0, 0.0),
+                    (r.width, 0.0),
+                    (r.width, r.height),
+                    (0.0, r.height),
+                ]
+            }
+            Drawing::Triangle(t) => {
+                vec![(0.0, 0.0), (t.width, 0.0), (0.5 * t.width, t.height)]
+            }
+            Drawing::Path(p) => p.points.clone(),
+            Drawing::Beside(b) => {
+                let image_height = b.height;
+
+                let mut points = Vec::new();
+                let mut x_offset = 0.0;
+                for subimage in &b.drawings {
+                    points.extend(match b.align {
+                        Align::Bottom => subimage
+                            .points()
+                            .iter()
+                            .map(|(x, y)| (x + x_offset, *y + image_height - subimage.height()))
+                            .collect::<Vec<_>>(),
+                        Align::Top => subimage
+                            .points()
+                            .iter()
+                            .map(|(x, y)| (x + x_offset, *y))
+                            .collect::<Vec<_>>(),
+                        _ => subimage
+                            .points()
+                            .iter()
+                            .map(|(x, y)| {
+                                (x + x_offset, *y + (image_height - subimage.height()) / 2.0)
+                            })
+                            .collect::<Vec<_>>(),
+                    });
+
+                    x_offset += subimage.width();
+                }
+
+                points
+            }
+            Drawing::Above(a) => {
+                let image_width = a.width;
+                let mut points = Vec::new();
+                let mut y_offset = 0.0;
+                for subimage in &a.drawings {
+                    points.extend(match a.align {
+                        Align::Left => subimage
+                            .points()
+                            .iter()
+                            .map(|(x, y)| (*x, y + y_offset))
+                            .collect::<Vec<_>>(),
+                        Align::Right => subimage
+                            .points()
+                            .iter()
+                            .map(|(x, y)| (*x + image_width - subimage.width(), y + y_offset))
+                            .collect::<Vec<_>>(),
+                        _ => subimage
+                            .points()
+                            .iter()
+                            .map(|(x, y)| {
+                                (*x + (image_width - subimage.width()) / 2.0, y + y_offset)
+                            })
+                            .collect::<Vec<_>>(),
+                    });
+                    y_offset += subimage.height();
+                }
+                points
+            }
+            Drawing::Overlay(o) => o
+                .drawings
+                .iter()
+                .rev()
+                .flat_map(|d| {
+                    d.points()
+                        .iter()
+                        .map(|(x, y)| {
+                            let x_offset = match o.x_align {
+                                Align::Left => 0.0,
+                                Align::Right => o.width - d.width(),
+                                _ => (o.width - d.width()) / 2.0,
+                            };
+                            let y_offset = match o.y_align {
+                                Align::Top => 0.0,
+                                Align::Bottom => o.height - d.height(),
+                                _ => (o.height - d.height()) / 2.0,
+                            };
+                            (x + x_offset, y + y_offset)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect(),
+            Drawing::OverlayOffset(o) => {
+                let x1 = if o.dx > 0.0 { 0.0 } else { f64::abs(o.dx) };
+                let y1 = if o.dy > 0.0 { 0.0 } else { f64::abs(o.dy) };
+                let x2 = if o.dx > 0.0 { o.dx } else { 0.0 };
+                let y2 = if o.dy > 0.0 { o.dy } else { 0.0 };
+
+                let d1_points = o.drawing1.points();
+                let d2_points = o.drawing2.points();
+
+                let d1_new_points = d1_points.iter().map(|(x, y)| (x + x1, y + y1));
+                let d2_new_points = d2_points.iter().map(|(x, y)| (x + x2, y + y2));
+
+                d1_new_points.chain(d2_new_points).collect()
+            }
+            Drawing::Rotate(r) => {
+                let angle_rad = r.angle.to_radians();
+
+                let rotated_points: Vec<(f64, f64)> = r
+                    .drawing
+                    .points()
+                    .iter()
+                    .map(|(x, y)| {
+                        (
+                            x * angle_rad.cos() - y * angle_rad.sin(),
+                            x * angle_rad.sin() + y * angle_rad.cos(),
+                        )
+                    })
+                    .collect();
+
+                let x_min = rotated_points
+                    .iter()
+                    .map(|(x, _)| *x)
+                    .fold(f64::INFINITY, |a, b| a.min(b));
+                let y_min = rotated_points
+                    .iter()
+                    .map(|(_, y)| *y)
+                    .fold(f64::INFINITY, |a, b| a.min(b));
+
+                rotated_points
+                    .iter()
+                    .map(|(x, y)| (x - x_min, y - y_min))
+                    .collect()
+            }
+            Drawing::WithDash(d) => d.drawing.points(),
+        }
     }
 }
 
@@ -471,13 +625,9 @@ fn overlay_offset(dx: f64, dy: f64, d1: Drawing, d2: Drawing) -> Drawing {
 #[function]
 fn rotate(angle: f64, drawing: Drawing) -> Drawing {
     let angle_rad = angle.to_radians();
-    let orig_points = vec![
-        (-drawing.width() / 2.0, -drawing.height() / 2.0),
-        (drawing.width() / 2.0, -drawing.height() / 2.0),
-        (-drawing.width() / 2.0, drawing.height() / 2.0),
-        (drawing.width() / 2.0, drawing.height() / 2.0),
-    ];
-    let rotated_points = orig_points
+
+    let rotated_points: Vec<(f64, f64)> = drawing
+        .points()
         .iter()
         .map(|(x, y)| {
             (
@@ -485,24 +635,15 @@ fn rotate(angle: f64, drawing: Drawing) -> Drawing {
                 x * angle_rad.sin() + y * angle_rad.cos(),
             )
         })
-        .collect::<Vec<(f64, f64)>>();
+        .collect();
 
-    let x_min = rotated_points
-        .iter()
-        .map(|(x, _)| *x)
-        .fold(f64::INFINITY, f64::min);
-    let x_max = rotated_points
-        .iter()
-        .map(|(x, _)| *x)
-        .fold(f64::NEG_INFINITY, f64::max);
-    let y_min = rotated_points
-        .iter()
-        .map(|(_, y)| *y)
-        .fold(f64::INFINITY, f64::min);
-    let y_max = rotated_points
-        .iter()
-        .map(|(_, y)| *y)
-        .fold(f64::NEG_INFINITY, f64::max);
+    let x_coords: Vec<f64> = rotated_points.iter().map(|(x, _)| *x).collect();
+    let y_coords: Vec<f64> = rotated_points.iter().map(|(_, y)| *y).collect();
+
+    let x_min = x_coords.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+    let x_max = x_coords.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+    let y_min = y_coords.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+    let y_max = y_coords.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
 
     let width = x_max - x_min;
     let height = y_max - y_min;
@@ -511,6 +652,8 @@ fn rotate(angle: f64, drawing: Drawing) -> Drawing {
         width,
         height,
         angle,
+        x_offset: -x_min,
+        y_offset: -y_min,
         drawing: Box::new(drawing),
     })
 }
