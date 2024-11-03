@@ -169,10 +169,13 @@ impl ExecutionStack {
                 let func = self.stack.pop().unwrap();
 
                 match func {
-                    Value::Closure(closure) => self.eval_closure(closure, args, op.span)?,
-                    Value::Function(function) => {
-                        let result = function.0(&args)
-                            .map_err(|err| RuntimeError::new(err.message, Some(op.span)))?;
+                    Value::Closure(closure, _) => self.eval_closure(closure, args, op.span)?,
+                    Value::Function(function, name) => {
+                        let result = function.0(&args).map_err(|err| RuntimeError {
+                            message: err.message,
+                            namespace: err.namespace.or(name),
+                            span: Some(op.span),
+                        })?;
                         self.stack.push(result);
                     }
                     _ => {
@@ -184,11 +187,14 @@ impl ExecutionStack {
                 }
             }
             OperationKind::Closure { params, body } => {
-                let value = Value::Closure(Closure {
-                    params,
-                    body,
-                    env: Some(self.env.clone()),
-                });
+                let value = Value::Closure(
+                    Closure {
+                        params,
+                        body,
+                        env: Some(self.env.clone()),
+                    },
+                    None,
+                );
                 self.stack.push(value);
             }
             OperationKind::If {
@@ -551,7 +557,7 @@ impl Runner {
                 self.step_expr(body);
             }
             StatementKind::Import { mod_name } => {
-                self.step_import(mod_name)?;
+                self.step_import(mod_name, stmt.span)?;
             }
             StatementKind::Display { body } => {
                 self.step_expr(body);
@@ -586,6 +592,11 @@ impl Runner {
         match value {
             Some(value) => {
                 // println!("{name} = {}", value);
+                let value = if let Value::Closure(closure, closure_name) = value {
+                    Value::Closure(closure, closure_name.or(Some(name.clone())))
+                } else {
+                    value
+                };
                 self.env.borrow_mut().set(name, value);
             }
             None => {
@@ -596,7 +607,7 @@ impl Runner {
         Ok(())
     }
 
-    fn step_import(&mut self, mod_name: String) -> Result<()> {
+    fn step_import(&mut self, mod_name: String, span: Span) -> Result<()> {
         match mod_name.as_str() {
             "image" => {
                 crate::modules::image::add_to(&mut self.env.borrow_mut());
@@ -609,8 +620,8 @@ impl Runner {
             }
             _ => {
                 return Err(RuntimeError::new(
-                    format!("Module not found: {}", mod_name),
-                    None,
+                    format!("Module {} not found", mod_name),
+                    Some(span),
                 ));
             }
         };

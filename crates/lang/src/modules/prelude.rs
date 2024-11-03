@@ -287,10 +287,10 @@ fn plus(args: &[Number]) -> Number {
 #[function]
 fn minus(args: &[Number]) -> Result<Number, RuntimeError> {
     if args.is_empty() {
-        return Err(RuntimeError {
-            message: "Expected at least one argument".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            "Expected at least one argument".to_string(),
+            None,
+        ));
     }
     if args.len() == 1 {
         return Ok(0.0 - args[0]);
@@ -314,10 +314,10 @@ fn times(args: &[Number]) -> Number {
 #[function]
 fn divide(args: &[Number]) -> Result<Number, RuntimeError> {
     if args.is_empty() {
-        return Err(RuntimeError {
-            message: "Expected at least one argument".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            "Expected at least one argument".to_string(),
+            None,
+        ));
     }
     let mut quotient = args[0];
     for i in 1..args.len() {
@@ -421,10 +421,7 @@ fn string_to_number(x: String) -> Result<Value, RuntimeError> {
     } else if let Ok(n) = x.parse::<i64>() {
         return Ok(Value::Integer(n));
     }
-    Err(RuntimeError {
-        message: format!("invalid string: {}", x),
-        span: None,
-    })
+    Err(RuntimeError::new(format!("invalid string: {}", x), None))
 }
 
 #[function]
@@ -528,10 +525,7 @@ fn car(pair: Value) -> Result<Value, RuntimeError> {
         }
         _ => {}
     }
-    Err(RuntimeError {
-        message: "Expected a pair".to_string(),
-        span: None,
-    })
+    Err(RuntimeError::new("Expected a pair".to_string(), None))
 }
 
 #[function]
@@ -545,10 +539,7 @@ fn cdr(pair: Value) -> Result<Value, RuntimeError> {
         }
         _ => {}
     }
-    Err(RuntimeError {
-        message: "Expected a pair".to_string(),
-        span: None,
-    })
+    Err(RuntimeError::new("Expected a pair".to_string(), None))
 }
 
 #[function]
@@ -580,30 +571,27 @@ fn length(list: Value) -> Result<i64, RuntimeError> {
     match list {
         Value::List(values) => Ok(values.len() as i64),
         Value::Null => Ok(0),
-        _ => Err(RuntimeError {
-            message: "Expected a list".to_string(),
-            span: None,
-        }),
+        _ => Err(RuntimeError::new("Expected a list".to_string(), None)),
     }
 }
 
 #[function]
 fn append(args: &[Value]) -> Result<Value, RuntimeError> {
     let Some(first) = args.first() else {
-        return Err(RuntimeError {
-            message: "Expected at least one argument".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            "Expected at least one argument".to_string(),
+            None,
+        ));
     };
 
     let mut total = match first {
         Value::List(values) => values.clone(),
         Value::Null => Vec::new(),
         _ => {
-            return Err(RuntimeError {
-                message: "Expected first argument to be a list".to_string(),
-                span: None,
-            });
+            return Err(RuntimeError::new(
+                "Expected first argument to be a list".to_string(),
+                None,
+            ));
         }
     };
 
@@ -612,10 +600,10 @@ fn append(args: &[Value]) -> Result<Value, RuntimeError> {
             Value::List(values) => total.extend(values),
             Value::Null => {}
             _ => {
-                return Err(RuntimeError {
-                    message: "Expected all arguments to be lists".to_string(),
-                    span: None,
-                });
+                return Err(RuntimeError::new(
+                    "Expected all arguments to be lists".to_string(),
+                    None,
+                ));
             }
         }
     }
@@ -637,10 +625,10 @@ fn reverse(l: List) -> List {
 #[function]
 fn list_tail(l: List, k: i64) -> Result<List, RuntimeError> {
     if k < 0 {
-        return Err(RuntimeError {
-            message: "Expected argument 2 to be a non-negative integer".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            "Expected argument 2 to be a non-negative integer".to_string(),
+            None,
+        ));
     }
     if l.is_empty() {
         return Ok(l);
@@ -658,10 +646,10 @@ fn list_tail(l: List, k: i64) -> Result<List, RuntimeError> {
 #[function]
 fn list_take(l: List, k: i64) -> Result<List, RuntimeError> {
     if k < 0 {
-        return Err(RuntimeError {
-            message: "Expected argument 2 to be a non-negative integer".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            "Expected argument 2 to be a non-negative integer".to_string(),
+            None,
+        ));
     }
     if l.is_empty() {
         return Ok(l);
@@ -679,17 +667,14 @@ fn list_take(l: List, k: i64) -> Result<List, RuntimeError> {
 #[function]
 fn list_ref(l: List, n: i64) -> Result<Value, RuntimeError> {
     if n < 0 {
-        return Err(RuntimeError {
-            message: "Expected argument 2 to be a non-negative integer".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            "Expected argument 2 to be a non-negative integer".to_string(),
+            None,
+        ));
     }
     let vec: Vec<Value> = l.into();
     if n >= vec.len() as i64 {
-        return Err(RuntimeError {
-            message: "Index out of bounds".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new("Index out of bounds".to_string(), None));
     }
     Ok(vec[n as usize].clone())
 }
@@ -714,10 +699,10 @@ fn assoc_key(v: Value, l: List) -> Result<bool, RuntimeError> {
                 return Ok(true);
             }
         } else {
-            return Err(RuntimeError {
-                message: "Expected a list of pairs".to_string(),
-                span: None,
-            });
+            return Err(RuntimeError::new(
+                "Expected a list of pairs".to_string(),
+                None,
+            ));
         }
     }
     Ok(false)
@@ -732,16 +717,16 @@ fn assoc_ref(v: Value, l: List) -> Result<Value, RuntimeError> {
                 return Ok(*y);
             }
         } else {
-            return Err(RuntimeError {
-                message: "Expected a list of pairs".to_string(),
-                span: None,
-            });
+            return Err(RuntimeError::new(
+                "Expected a list of pairs".to_string(),
+                None,
+            ));
         }
     }
-    Err(RuntimeError {
-        message: format!("assoc-ref: key {v} not found in association list"),
-        span: None,
-    })
+    Err(RuntimeError::new(
+        format!("assoc-ref: key {v} not found in association list"),
+        None,
+    ))
 }
 
 // Returns a new association list containing the same key-value pairs as l except that k is associated with v.
@@ -759,10 +744,10 @@ fn assoc_set(k: Value, v: Value, l: List) -> Result<List, RuntimeError> {
                 new_vec.push(Value::Pair(x, y));
             }
         } else {
-            return Err(RuntimeError {
-                message: "Expected a list of pairs".to_string(),
-                span: None,
-            });
+            return Err(RuntimeError::new(
+                "Expected a list of pairs".to_string(),
+                None,
+            ));
         }
     }
     if !found {
@@ -864,10 +849,10 @@ fn digit_value(c: char) -> Result<i64, RuntimeError> {
     if c.is_digit(10) {
         Ok(c.to_digit(10).unwrap() as i64)
     } else {
-        Err(RuntimeError {
-            message: format!("digit-value: {c} is not a decimal digit"),
-            span: None,
-        })
+        Err(RuntimeError::new(
+            format!("digit-value: {c} is not a decimal digit"),
+            None,
+        ))
     }
 }
 
@@ -881,10 +866,10 @@ fn integer_to_char(i: i64) -> Result<char, RuntimeError> {
     if i >= 0 && i <= std::char::MAX as i64 {
         Ok(i as u8 as char)
     } else {
-        Err(RuntimeError {
-            message: format!("integer->char: {i} is not in the range of a character"),
-            span: None,
-        })
+        Err(RuntimeError::new(
+            format!("integer->char: {i} is not in the range of a character"),
+            None,
+        ))
     }
 }
 
@@ -908,10 +893,10 @@ fn make_string(n: i64, c: char) -> Result<String, RuntimeError> {
     if n >= 0 {
         Ok(c.to_string().repeat(n as usize))
     } else {
-        Err(RuntimeError {
-            message: format!("make-string: {n} should be positive"),
-            span: None,
-        })
+        Err(RuntimeError::new(
+            format!("make-string: {n} should be positive"),
+            None,
+        ))
     }
 }
 
@@ -931,10 +916,10 @@ fn string_ref(s: String, i: i64) -> Result<char, RuntimeError> {
         Ok(s.chars().nth(i as usize).unwrap())
     } else {
         // scamper (upstream) returns #\undefined (?)
-        Err(RuntimeError {
-            message: format!("string-ref: index {i} out of bounds"),
-            span: None,
-        })
+        Err(RuntimeError::new(
+            format!("string-ref: index {i} out of bounds"),
+            None,
+        ))
     }
 }
 
@@ -1010,10 +995,10 @@ fn substring(s: String, start: i64, end: i64) -> Result<String, RuntimeError> {
             .take((end - start) as usize)
             .collect())
     } else {
-        Err(RuntimeError {
-            message: format!("substring: invalid start {start} or end {end}"),
-            span: None,
-        })
+        Err(RuntimeError::new(
+            format!("substring: invalid start {start} or end {end}"),
+            None,
+        ))
     }
 }
 
@@ -1034,10 +1019,10 @@ fn list_to_string(l: List) -> Result<String, RuntimeError> {
         match v {
             Value::Char(c) => s.push(*c),
             _ => {
-                return Err(RuntimeError {
-                    message: format!("list->string: list contains non-character element: {v}"),
-                    span: None,
-                });
+                return Err(RuntimeError::new(
+                    format!("list->string: list contains non-character element: {v}"),
+                    None,
+                ));
             }
         }
     }
@@ -1056,10 +1041,10 @@ fn vector_to_string(v: Vector) -> Result<String, RuntimeError> {
         match c {
             Value::Char(c) => s.push(*c),
             _ => {
-                return Err(RuntimeError {
-                    message: format!("vector->string: vector contains non-character element: {c}"),
-                    span: None,
-                });
+                return Err(RuntimeError::new(
+                    format!("vector->string: vector contains non-character element: {c}"),
+                    None,
+                ));
             }
         }
     }
@@ -1114,10 +1099,10 @@ fn vector_ref(v: Vector, i: i64) -> Result<Value, RuntimeError> {
     if i >= 0 && i < v.len() as i64 {
         Ok(v.values()[i as usize].clone())
     } else {
-        Err(RuntimeError {
-            message: format!("vector-ref: index {i} out of bounds"),
-            span: None,
-        })
+        Err(RuntimeError::new(
+            format!("vector-ref: index {i} out of bounds"),
+            None,
+        ))
     }
 }
 
@@ -1144,10 +1129,10 @@ fn list_to_vector(l: List) -> Vector {
 #[function]
 fn vector_range(args: &[Number]) -> Result<Vector, RuntimeError> {
     if args.is_empty() || args.len() > 3 {
-        return Err(RuntimeError {
-            message: format!("1, 2, or 3 numbers must be passed to function"),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            format!("1, 2, or 3 numbers must be passed to function"),
+            None,
+        ));
     }
     let m = if args.len() == 1 {
         0.0
@@ -1165,10 +1150,10 @@ fn vector_range(args: &[Number]) -> Result<Vector, RuntimeError> {
         1.0
     };
     if step == 0.0 {
-        return Err(RuntimeError {
-            message: format!("\"step\" argument must be non-zero"),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            format!("\"step\" argument must be non-zero"),
+            None,
+        ));
     }
     let mut v = Vec::new();
     let mut i = m;
@@ -1190,7 +1175,7 @@ fn vector_append(vectors: &[Vector]) -> Vector {
 
 #[function]
 fn procedure_q(v: Value) -> bool {
-    matches!(v, Value::Function(_) | Value::Closure { .. })
+    matches!(v, Value::Function(_, _) | Value::Closure { .. })
 }
 
 #[function]
@@ -1203,10 +1188,10 @@ fn string_map(f: Function, s: String) -> Result<String, RuntimeError> {
     s.chars()
         .map(|c| match f.call(&[Value::Char(c)])? {
             Value::Char(c) => Ok(c),
-            _ => Err(RuntimeError {
-                message: format!("string-map: function must return a character"),
-                span: None,
-            }),
+            _ => Err(RuntimeError::new(
+                format!("function must return a character"),
+                None,
+            )),
         })
         .collect()
 }
@@ -1226,20 +1211,20 @@ fn map_prim(f: Function, vectors: Vec<Vec<Value>>) -> Result<Vec<Value>, Runtime
 #[function]
 fn map(args: &[Value]) -> Result<Value, RuntimeError> {
     if args.is_empty() {
-        return Err(RuntimeError {
-            message: format!("map: at least one argument must be passed to function"),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            format!("at least one argument must be passed to function"),
+            None,
+        ));
     }
 
     if args.len() == 1 {
         return Ok(Value::Null);
     }
 
-    let f: Function = Function::from_value(&args[0]).ok_or(RuntimeError {
-        message: format!("map: first argument must be a function"),
-        span: None,
-    })?;
+    let f: Function = Function::from_value(&args[0]).ok_or(RuntimeError::new(
+        format!("first argument must be a function"),
+        None,
+    ))?;
 
     let mut lists = Vec::new();
     for arg in args.iter().skip(1) {
@@ -1247,17 +1232,19 @@ fn map(args: &[Value]) -> Result<Value, RuntimeError> {
             Value::List(l) => lists.push(l.clone()),
             Value::Null => {
                 if !lists.is_empty() {
-                    return Err(RuntimeError {
-						message: format!("map: the lists passed to the function call do not have the same length"),
-						span: None,
-					});
+                    return Err(RuntimeError::new(
+                        format!(
+                            "the lists passed to the function call do not have the same length"
+                        ),
+                        None,
+                    ));
                 }
             }
             _ => {
-                return Err(RuntimeError {
-                    message: format!("map: all arguments after the first must be lists"),
-                    span: None,
-                });
+                return Err(RuntimeError::new(
+                    format!("all arguments after the first must be lists"),
+                    None,
+                ));
             }
         }
     }
@@ -1268,12 +1255,10 @@ fn map(args: &[Value]) -> Result<Value, RuntimeError> {
 
     let list_len = lists[0].len();
     if lists.iter().any(|l| l.len() != list_len) {
-        return Err(RuntimeError {
-            message: format!(
-                "map: the lists passed to the function call do not have the same length"
-            ),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            format!("the lists passed to the function call do not have the same length"),
+            None,
+        ));
     }
 
     let result = map_prim(f, lists)?;
@@ -1318,10 +1303,7 @@ fn fold_right(f: Function, init: Value, lst: List) -> Result<Value, RuntimeError
 #[function]
 fn reduce(f: Function, lst: List) -> Result<Value, RuntimeError> {
     if lst.is_empty() {
-        return Err(RuntimeError {
-            message: format!("reduce: list must not be empty"),
-            span: None,
-        });
+        return Err(RuntimeError::new(format!("list must not be empty"), None));
     }
     let mut iter = lst.values_vec().into_iter();
     let mut acc = iter.next().unwrap();
@@ -1334,10 +1316,7 @@ fn reduce(f: Function, lst: List) -> Result<Value, RuntimeError> {
 #[function]
 fn reduce_right(f: Function, lst: List) -> Result<Value, RuntimeError> {
     if lst.is_empty() {
-        return Err(RuntimeError {
-            message: format!("reduce-right: list must not be empty"),
-            span: None,
-        });
+        return Err(RuntimeError::new(format!("list must not be empty"), None));
     }
     let mut iter = lst.values_vec().into_iter().rev();
     let mut acc = iter.next().unwrap();
@@ -1350,20 +1329,20 @@ fn reduce_right(f: Function, lst: List) -> Result<Value, RuntimeError> {
 #[function]
 fn vector_map(args: &[Value]) -> Result<Vector, RuntimeError> {
     if args.is_empty() {
-        return Err(RuntimeError {
-            message: format!("map: at least one argument must be passed to function"),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            format!("at least one argument must be passed to function"),
+            None,
+        ));
     }
 
     if args.len() == 1 {
         return Ok(Vector::empty());
     }
 
-    let f: Function = Function::from_value(&args[0]).ok_or(RuntimeError {
-        message: format!("vector-map: first argument must be a function"),
-        span: None,
-    })?;
+    let f: Function = Function::from_value(&args[0]).ok_or(RuntimeError::new(
+        format!("first argument must be a function"),
+        None,
+    ))?;
 
     let mut lists = Vec::new();
     for arg in args.iter().skip(1) {
@@ -1371,17 +1350,17 @@ fn vector_map(args: &[Value]) -> Result<Vector, RuntimeError> {
             Value::List(l) => lists.push(l.clone()),
             Value::Null => {
                 if !lists.is_empty() {
-                    return Err(RuntimeError {
-							message: format!("vector-map: the vectors passed to the function call do not have the same length"),
-							span: None,
-						});
+                    return Err(RuntimeError::new(
+							format!("vector-map: the vectors passed to the function call do not have the same length"),
+							 None,
+								));
                 }
             }
             _ => {
-                return Err(RuntimeError {
-                    message: format!("vector-map: all arguments after the first must be vectors"),
-                    span: None,
-                });
+                return Err(RuntimeError::new(
+                    format!("vector-map: all arguments after the first must be vectors"),
+                    None,
+                ));
             }
         }
     }
@@ -1392,12 +1371,10 @@ fn vector_map(args: &[Value]) -> Result<Vector, RuntimeError> {
 
     let list_len = lists[0].len();
     if lists.iter().any(|l| l.len() != list_len) {
-        return Err(RuntimeError {
-            message: format!(
-                "vector-map: the vectors passed to the function call do not have the same length"
-            ),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            format!("the vectors passed to the function call do not have the same length"),
+            None,
+        ));
     }
 
     let result = map_prim(f, lists)?;
@@ -1445,28 +1422,25 @@ fn void_q(value: Value) -> bool {
 
 #[function]
 fn error(message: String) -> Result<Value, RuntimeError> {
-    Err(RuntimeError {
-        message,
-        span: None,
-    })
+    Err(RuntimeError::new(message, None))
 }
 
 #[function]
 fn qq() -> Result<Value, RuntimeError> {
-    Err(RuntimeError {
-        message: "Hole encountered in program!".to_string(),
-        span: None,
-    })
+    Err(RuntimeError::new(
+        "Hole encountered in program!".to_string(),
+        None,
+    ))
 }
 
 // todo: this might have issues idk
 #[function]
 fn compose(funcs: &[Function]) -> Result<Value, RuntimeError> {
     if funcs.is_empty() {
-        return Err(RuntimeError {
-            message: "compose: at least one function must be passed".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            "at least one function must be passed".to_string(),
+            None,
+        ));
     }
     let mut operations: Vec<Operation> = Vec::new();
 
@@ -1478,29 +1452,30 @@ fn compose(funcs: &[Function]) -> Result<Value, RuntimeError> {
         operations.push(Operation::ap(1, Span { loc: 0, len: 0 }));
     }
 
-    Ok(Value::Closure(Closure {
-        params: vec![String::from("x")],
-        body: operations,
-        env: None,
-    }))
+    Ok(Value::Closure(
+        Closure {
+            params: vec![String::from("x")],
+            body: operations,
+            env: None,
+        },
+        None,
+    ))
 }
 
 #[function]
 fn pipe(args: &[Value]) -> Result<Value, RuntimeError> {
     if args.len() < 2 {
-        return Err(RuntimeError {
-            message: "(|>) at least two arguments must be passed".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            "at least two arguments must be passed".to_string(),
+            None,
+        ));
     }
     let functions = args
         .iter()
         .skip(1)
         .map(|v| {
-            Function::from_value(v).ok_or(RuntimeError {
-                message: "(|>) expected a function".to_string(),
-                span: None,
-            })
+            Function::from_value(v)
+                .ok_or(RuntimeError::new("expected a function".to_string(), None))
         })
         .collect::<Result<Vec<_>, RuntimeError>>()?;
     let mut acc = args[0].clone();
@@ -1513,10 +1488,10 @@ fn pipe(args: &[Value]) -> Result<Value, RuntimeError> {
 #[function]
 fn range(args: &[Number]) -> Result<List, RuntimeError> {
     if args.is_empty() || args.len() > 3 {
-        return Err(RuntimeError {
-            message: "range: 1, 2, or 3 numbers must be passed to function".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            "1, 2, or 3 numbers must be passed to function".to_string(),
+            None,
+        ));
     }
     let m = if args.len() == 1 {
         0.0
@@ -1534,10 +1509,10 @@ fn range(args: &[Number]) -> Result<List, RuntimeError> {
         1.0
     };
     if step == 0.0 {
-        return Err(RuntimeError {
-            message: "range: step argument must be non-zero".to_string(),
-            span: None,
-        });
+        return Err(RuntimeError::new(
+            "step argument must be non-zero".to_string(),
+            None,
+        ));
     }
     let mut result = Vec::new();
     let mut i = m;

@@ -5,6 +5,7 @@ use crate::interpreter::{Env, ExecutionStack, RuntimeError};
 
 #[derive(Debug, Clone)]
 pub struct Function {
+    name: Option<String>,
     _function: Option<NativeFn>,
     _closure: Option<Closure>,
 }
@@ -44,11 +45,11 @@ impl Function {
 
     pub fn value(&self) -> Value {
         match &self._function {
-            Some(func) => return Value::Function(func.clone()),
+            Some(func) => return Value::Function(func.clone(), self.name.clone()),
             None => {}
         }
         match &self._closure {
-            Some(closure) => return Value::Closure(closure.clone()),
+            Some(closure) => return Value::Closure(closure.clone(), self.name.clone()),
             None => {}
         }
         unreachable!()
@@ -58,15 +59,21 @@ impl Function {
 impl FromValue for Function {
     fn from_value(value: &Value) -> Option<Self> {
         match value {
-            Value::Function(func) => Some(Function {
+            Value::Function(func, name) => Some(Function {
+                name: name.clone(),
                 _function: Some(func.clone()),
                 _closure: None,
             }),
-            Value::Closure(closure) => Some(Function {
+            Value::Closure(closure, name) => Some(Function {
+                name: name.clone(),
                 _function: None,
                 _closure: Some(closure.clone()),
             }),
             _ => None,
         }
+    }
+
+    fn name() -> &'static str {
+        "procedure"
     }
 }

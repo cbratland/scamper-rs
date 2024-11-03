@@ -38,8 +38,10 @@ impl Env {
     }
 
     pub fn register(&mut self, name: &str, func: fn(&[Value]) -> Result<Value, RuntimeError>) {
-        self.bindings
-            .insert(name.to_string(), Value::Function(NativeFn::new(func)));
+        self.bindings.insert(
+            name.to_string(),
+            Value::Function(NativeFn::new(func), Some(name.to_string())),
+        );
     }
 
     pub fn register_value<T: IntoValue>(&mut self, name: &str, value: T) -> bool {

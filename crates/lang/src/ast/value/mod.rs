@@ -88,9 +88,10 @@ impl Struct {
                 _ => false,
             }))
         };
+        let pred_fn_name = format!("{}?", self.kind);
         env.set(
-            format!("{}?", self.kind),
-            Value::Function(NativeFn::new(pred_fn)),
+            pred_fn_name.clone(),
+            Value::Function(NativeFn::new(pred_fn), Some(pred_fn_name)),
         );
 
         let ctor_id = self.kind.clone();
@@ -147,7 +148,10 @@ impl Struct {
                 values,
             }))
         };
-        env.set(self.kind.clone(), Value::Function(NativeFn::new(ctor_fn)));
+        env.set(
+            self.kind.clone(),
+            Value::Function(NativeFn::new(ctor_fn), Some(self.kind.clone())),
+        );
 
         for (field_idx, field) in self.fields.iter().enumerate() {
             let field_name = format!("{}-{field}", self.kind);
@@ -172,7 +176,10 @@ impl Struct {
                     None,
                 ))
             };
-            env.set(field_name, Value::Function(NativeFn::new(field_fn)));
+            env.set(
+                field_name.clone(),
+                Value::Function(NativeFn::new(field_fn), Some(field_name)),
+            );
         }
     }
 }
@@ -188,9 +195,9 @@ pub enum Value {
     List(Vec<Value>),
     Vector(Vec<Value>),
     Symbol(String),
-    Closure(Closure),
     Struct(Struct),
-    Function(NativeFn), // rust function
+    Closure(Closure, Option<String>),
+    Function(NativeFn, Option<String>), // rust function
     Foreign(Rc<dyn Any>),
     Null,
     Void,
@@ -221,6 +228,24 @@ impl Value {
         match self {
             Value::String(s) => Some(s),
             _ => None,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            Value::Boolean(_) => "boolean",
+            Value::Integer(_) | Value::Float(_) => "number",
+            Value::String(_) => "string",
+            Value::Char(_) => "char",
+            Value::Pair(_, _) => "pair",
+            Value::List(_) => "list",
+            Value::Vector(_) => "vector",
+            Value::Symbol(_) => "symbol",
+            Value::Struct(_) => "struct",
+            Value::Closure(_, _) | Value::Function(_, _) => "procedure",
+            Value::Foreign(_) => "foreign value",
+            Value::Null => "null",
+            Value::Void => "void",
         }
     }
 }
@@ -255,8 +280,12 @@ impl std::fmt::Display for Value {
                 write!(f, ")")
             }
             Value::Symbol(s) => write!(f, "{}", s),
-            Value::Closure(c) => {
-                write!(f, "(lambda ({}) <body>)", c.params.join(" "))
+            Value::Closure(c, name) => {
+                if let Some(name) = name {
+                    write!(f, "{}", name)
+                } else {
+                    write!(f, "(lambda ({}) <body>)", c.params.join(" "))
+                }
             }
             Value::Struct(s) => {
                 write!(f, "({}", s.kind)?;
@@ -265,7 +294,13 @@ impl std::fmt::Display for Value {
                 }
                 write!(f, ")")
             }
-            Value::Function(_) => write!(f, "<function>"),
+            Value::Function(_, name) => {
+                if let Some(name) = name {
+                    write!(f, "{}", name)
+                } else {
+                    write!(f, "<function>")
+                }
+            }
             Value::Foreign(_) => write!(f, "<foreign>"),
             Value::Null => write!(f, "null"),
             Value::Void => write!(f, "void"),
@@ -286,9 +321,9 @@ impl PartialEq for Value {
             (Value::List(a), Value::List(b)) => *a == *b,
             (Value::Vector(a), Value::Vector(b)) => *a == *b,
             (Value::Symbol(a), Value::Symbol(b)) => *a == *b,
-            (Value::Closure(a), Value::Closure(b)) => *a == *b,
+            (Value::Closure(a, _), Value::Closure(b, _)) => *a == *b,
             (Value::Struct(a), Value::Struct(b)) => *a == *b,
-            (Value::Function(a), Value::Function(b)) => *a == *b,
+            (Value::Function(a, c), Value::Function(b, d)) => c == d || *a == *b,
             (Value::Null, Value::Null) => true,
             (Value::List(a), Value::Null) => a.is_empty(),
             (Value::Foreign(a), Value::Foreign(b)) => Rc::ptr_eq(a, b),
@@ -304,6 +339,8 @@ pub trait FromValue: Sized {
     fn from_value(value: &Value) -> Option<Self>
     where
         Self: Sized;
+
+    fn name() -> &'static str;
 }
 
 // for turning a rust value into a scamper value
@@ -314,6 +351,10 @@ pub trait IntoValue: Sized {
 impl FromValue for Value {
     fn from_value(value: &Value) -> Option<Self> {
         Some(value.clone())
+    }
+
+    fn name() -> &'static str {
+        ""
     }
 }
 
@@ -329,6 +370,10 @@ impl FromValue for bool {
             Value::Boolean(b) => Some(*b),
             _ => None,
         }
+    }
+
+    fn name() -> &'static str {
+        "boolean"
     }
 }
 
@@ -352,6 +397,10 @@ impl FromValue for i64 {
             _ => None,
         }
     }
+
+    fn name() -> &'static str {
+        "integer"
+    }
 }
 
 impl IntoValue for i64 {
@@ -368,6 +417,10 @@ impl FromValue for f64 {
             _ => None,
         }
     }
+
+    fn name() -> &'static str {
+        "number"
+    }
 }
 
 impl IntoValue for f64 {
@@ -382,6 +435,10 @@ impl FromValue for String {
             Value::String(s) => Some(s.clone()),
             _ => None,
         }
+    }
+
+    fn name() -> &'static str {
+        "string"
     }
 }
 
@@ -403,6 +460,10 @@ impl FromValue for char {
             Value::Char(c) => Some(*c),
             _ => None,
         }
+    }
+
+    fn name() -> &'static str {
+        "char"
     }
 }
 

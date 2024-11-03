@@ -233,6 +233,10 @@ impl FromValue for Number {
             _ => None,
         }
     }
+
+    fn name() -> &'static str {
+        "number"
+    }
 }
 
 impl IntoValue for Number {

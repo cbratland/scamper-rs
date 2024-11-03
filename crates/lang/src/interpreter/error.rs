@@ -7,19 +7,32 @@ fn count_lines_up_to(s: &str, up_to: usize) -> usize {
 #[derive(Debug, Clone)]
 pub struct RuntimeError {
     pub message: String,
+    pub namespace: Option<String>,
     pub span: Option<Span>,
 }
 
 impl RuntimeError {
     pub fn new(message: String, span: Option<Span>) -> Self {
-        Self { message, span }
+        Self {
+            message,
+            namespace: None,
+            span,
+        }
     }
 
     pub fn emit_to_string(&self, src: &str) -> String {
         let line_span = if let Some(span) = self.span {
             let loc = span.loc as usize;
             if loc >= src.len() {
-                return format!("Runtime error: {}", self.message);
+                return format!(
+                    "Runtime error: {}{}",
+                    if let Some(namespace) = &self.namespace {
+                        format!("({}) ", namespace)
+                    } else {
+                        String::default()
+                    },
+                    self.message
+                );
             }
 
             let end = loc + span.len as usize;
@@ -42,9 +55,14 @@ impl RuntimeError {
         };
 
         return format!(
-            "Runtime error{}: {}.",
+            "Runtime error{}: {}{}.",
             if let Some(line_span) = line_span {
                 format!(" [{}]", line_span)
+            } else {
+                String::default()
+            },
+            if let Some(namespace) = &self.namespace {
+                format!("({}) ", namespace)
             } else {
                 String::default()
             },

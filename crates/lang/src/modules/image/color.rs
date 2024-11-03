@@ -226,6 +226,10 @@ impl FromValue for Color {
             _ => None,
         }
     }
+
+    fn name() -> &'static str {
+        "color"
+    }
 }
 
 fn is_rgb_component_prim(value: f64) -> bool {

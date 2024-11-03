@@ -62,6 +62,10 @@ impl FromValue for Mode {
             _ => None,
         }
     }
+
+    fn name() -> &'static str {
+        "mode (\"solid\" or \"outline\")"
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -88,6 +92,10 @@ impl FromValue for Align {
             },
             _ => None,
         }
+    }
+
+    fn name() -> &'static str {
+        "alignment (\"top\", \"bottom\", \"middle\", \"left\", \"right\", or \"center\")"
     }
 }
 

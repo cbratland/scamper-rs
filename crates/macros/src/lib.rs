@@ -88,7 +88,7 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
         quote! {
             if !#checker_type.check(&args[#index]) {
                 return Err(crate::interpreter::RuntimeError::new(
-                    format!("argument {} must be a {}", #index + 1, #checker_type.name()),
+                    format!("expected a {} in argument {}, received {}", #checker_type.name(), #index + 1, args[#index].name()),
                     None,
                 ));
             }
@@ -125,20 +125,26 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
             #(#type_checks)*
 
             if args.len() < #non_slice_count {
-                return Err(crate::interpreter::RuntimeError {
-                    message: format!("Expected at least {} arguments, got {}", #non_slice_count, args.len()),
-                    span: None,
-                });
+                return Err(crate::interpreter::RuntimeError::new(
+                     format!("wrong number of arguments provided: expected at least {}, received {}", #non_slice_count, args.len()),
+                     None,
+                ));
             }
 
             #(
-                let #non_slice_names = if let Some(value) = <#non_slice_types as crate::ast::FromValue>::from_value(&args[#non_slice_indices]) {
+                let #non_slice_names = if let Some(value) = <#non_slice_types as crate::ast::FromValue>::from_value(
+                    &args[#non_slice_indices]
+                ) {
                     value
                 } else {
-                    return Err(crate::interpreter::RuntimeError {
-                        message: format!("Failed to convert argument {} to {}", #non_slice_indices, stringify!(#non_slice_types)),
-                        span: None,
-                    });
+                    return Err(crate::interpreter::RuntimeError::new(
+                        format!(
+                            "expected a {}, received {}",
+                            <#slice_type as crate::ast::FromValue>::name(),
+                            args[#non_slice_indices].name()
+                        ),
+                        None,
+                    ));
                 };
             )*
 
@@ -148,10 +154,14 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
                     if let Some(converted) = <#slice_type as crate::ast::FromValue>::from_value(value) {
                         Ok(converted)
                     } else {
-                        Err(crate::interpreter::RuntimeError {
-                            message: format!("Failed to convert slice item to {}", stringify!(#slice_type)),
-                            span: None,
-                        })
+                        Err(crate::interpreter::RuntimeError::new(
+                            format!(
+                                "expected a {}, received {}",
+                                <#slice_type as crate::ast::FromValue>::name(),
+                                value.name()
+                            ),
+                            None,
+                        ))
                     }
                 })
                 .collect::<Result<Vec<_>, crate::interpreter::RuntimeError>>()?;
@@ -161,21 +171,25 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
         quote! {
             #(#type_checks)*
 
-           if args.len() != #arg_count {
-               return Err(crate::interpreter::RuntimeError {
-                   message: format!("Expected {} arguments, got {}", #arg_count, args.len()),
-                   span: None,
-               });
-           }
+            if args.len() != #arg_count {
+                return Err(crate::interpreter::RuntimeError::new(
+                    format!("wrong number of arguments provided: expected {}, received {}", #arg_count, args.len()),
+                    None,
+                ));
+            }
 
            #(
-               let #arg_names = if let Some(value) = <#arg_types as crate::ast::FromValue>::from_value(&args[#indices]) {
-                   value
-               } else {
-                   return Err(crate::interpreter::RuntimeError {
-                       message: format!("Failed to convert argument {} to {}", #indices, stringify!(#arg_types)),
-                       span: None,
-                   });
+                let #arg_names = if let Some(value) = <#arg_types as crate::ast::FromValue>::from_value(&args[#indices]) {
+                    value
+                } else {
+                    return Err(crate::interpreter::RuntimeError::new(
+                        format!(
+                            "expected a {}, received {}",
+                            <#arg_types as crate::ast::FromValue>::name(),
+                            args[#indices].name()
+                        ),
+                        None,
+                    ));
                };
            )*
         }
@@ -192,10 +206,10 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
             if let Some(converted) = result.into_value() {
                 Ok(converted)
             } else {
-                Err(crate::interpreter::RuntimeError {
-                    message: "Failed to convert return value".to_string(),
-                    span: None,
-                })
+                Err(crate::interpreter::RuntimeError::new(
+                    "failed to parse return value".to_string(),
+                    None,
+                ))
             }
         };
         if is_result {
@@ -230,6 +244,7 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn derive_value_conversion(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
+    let name_str = name.to_string().to_lowercase();
 
     let expanded = quote! {
         impl crate::ast::IntoValue for #name {
@@ -244,6 +259,10 @@ pub fn derive_value_conversion(input: TokenStream) -> TokenStream {
                     crate::ast::Value::Foreign(f) => f.downcast_ref::<#name>().cloned(),
                     _ => None,
                 }
+            }
+
+            fn name() -> &'static str {
+                #name_str
             }
         }
     };
@@ -381,6 +400,10 @@ pub fn derive_struct_conversion(input: TokenStream) -> TokenStream {
                     }
                     _ => None,
                 }
+            }
+
+            fn name() -> &'static str {
+                #name_str
             }
         }
     };

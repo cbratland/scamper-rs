@@ -52,6 +52,10 @@ impl FromValue for List {
             _ => None,
         }
     }
+
+    fn name() -> &'static str {
+        "list"
+    }
 }
 
 impl IntoValue for List {
@@ -70,6 +74,10 @@ impl FromValue for Vector {
             Value::Vector(list) => Some(Vector(list.clone())),
             _ => None,
         }
+    }
+
+    fn name() -> &'static str {
+        "vector"
     }
 }
 
