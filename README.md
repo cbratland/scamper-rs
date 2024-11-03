@@ -12,13 +12,15 @@ there's a repl you can use if you only need to do simple stuff like manipulating
 cargo run --bin scamper-repl
 ```
 
-but there's also a clone of the original scamper web interface that compiles the rust code to webassembly. you can run it with:
+but there's also a clone of the original scamper web interface that compiles the rust code to webassembly, which you can run with:
 
 ```bash
+cargo install trunk
+bun install
 bun run serve
 ```
 
-but you might need to set up [bun](https://bun.sh) (better than node), [leptos](https://leptos.dev) and trunk first (the leptos documentation book walks through this).
+after installing [bun](https://bun.sh) (better than node).
 
 ## checklist
 
