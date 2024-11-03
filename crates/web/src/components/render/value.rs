@@ -1,8 +1,9 @@
-use super::{CodeBlock, DrawingView, LabElementView};
+use super::{CodeBlock, CompositionView, DrawingView, LabElementView};
 use leptos::*;
 use scamper_rs::ast::{FromValue, Value};
 use scamper_rs::modules::image::{Drawing, Hsv, Rgb};
 use scamper_rs::modules::lab::LabElement;
+use scamper_rs::modules::music::Composition;
 
 #[derive(Debug, Clone)]
 pub enum ValueOrError {
@@ -46,6 +47,13 @@ fn custom_view(value: &Value) -> Option<View> {
                 return Some(
                     view! {
                         <LabElementView element=element.clone() />
+                    }
+                    .into_view(),
+                );
+            } else if let Some(composition) = item.downcast_ref::<Composition>() {
+                return Some(
+                    view! {
+                        <CompositionView composition=composition.clone() />
                     }
                     .into_view(),
                 );

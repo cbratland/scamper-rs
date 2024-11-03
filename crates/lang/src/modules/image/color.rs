@@ -1,8 +1,8 @@
 use crate::{
     ast::{Contract, FromValue, List, Struct, Value},
     interpreter::{Env, RuntimeError},
+    make_range_checker,
 };
-use const_format::formatcp;
 use scamper_macros::{function, ScamperStruct};
 use std::fmt::Display;
 
@@ -51,25 +51,6 @@ pub fn add_to(env: &mut Env) {
     env.register("rgb-add", rgb_add);
     env.register("rgb-subtract", rgb_subtract);
     env.register("rgb-average", rgb_average);
-}
-
-macro_rules! make_range_checker {
-    ($name:ident, $min:expr, $max:expr) => {
-        struct $name;
-        impl Contract for $name {
-            fn check(&self, value: &Value) -> bool {
-                let Some(n) = value.numeric() else {
-                    return false;
-                };
-                n >= $min && n <= $max
-            }
-            fn name(&self) -> &'static str {
-                const MIN: i64 = $min as i64;
-                const MAX: i64 = $max as i64;
-                formatcp!("number in the range {MIN}-{MAX}")
-            }
-        }
-    };
 }
 
 make_range_checker!(RgbComponentChecker, 0.0, 255.0);

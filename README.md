@@ -20,12 +20,24 @@ bun run serve
 
 but you might need to set up [bun](https://bun.sh) (better than node), [leptos](https://leptos.dev) and trunk first (the leptos documentation book walks through this).
 
-## missing stuff
+## checklist
 
-currently only the language features, prelude, and the image library are implemented. some things that are missing:
+we're still missing some things from the original scamper, but here's the progress:
 
-- mutable vectors (e.g. `vector-set!`)
-- reactive image files
-- music functionality
-- the debugging features of the original scamper
-- all the other scamper built in libraries
+- [x] language features (`define`, `let`, `match`, etc.)
+- [x] prelude
+- [x] built-in libraries
+	- [x] image
+	- [x] lab
+	- [x] music
+	- [ ] test
+	- [ ] audio
+	- [ ] canvas
+	- [ ] html
+- [x] web editor
+- [ ] non-functional stuff
+	- [ ] mutable vectors (e.g. `vector-set!`)
+	- [ ] music playing and instrument loading (`play-composition`, `load-instrument`, etc.)
+- [ ] reactive image files
+- [ ] debugging features of the original scamper
+- [ ] multiple files in web editor

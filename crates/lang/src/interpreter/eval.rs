@@ -604,6 +604,9 @@ impl Runner {
             "lab" => {
                 crate::modules::lab::add_to(&mut self.env.borrow_mut());
             }
+            "music" => {
+                crate::modules::music::add_to(&mut self.env.borrow_mut());
+            }
             _ => {
                 return Err(RuntimeError::new(
                     format!("Module not found: {}", mod_name),

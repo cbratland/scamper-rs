@@ -12,6 +12,19 @@ impl Contract for NonNegative {
     }
 }
 
+pub struct Natural;
+impl Contract for Natural {
+    fn check(&self, value: &Value) -> bool {
+        value
+            .numeric()
+            .map_or(false, |s| s >= 0.0 && s.floor() == s)
+    }
+
+    fn name(&self) -> &'static str {
+        "natural number"
+    }
+}
+
 /// A generic number type that can be converted to and from `Value`.
 #[derive(Copy, Clone)]
 pub struct Number(f64, /* is float */ bool);
@@ -230,4 +243,24 @@ impl IntoValue for Number {
             Some(Value::Integer(self.0 as i64))
         }
     }
+}
+
+#[macro_export]
+macro_rules! make_range_checker {
+    ($name:ident, $min:expr, $max:expr) => {
+        struct $name;
+        impl Contract for $name {
+            fn check(&self, value: &Value) -> bool {
+                let Some(n) = value.numeric() else {
+                    return false;
+                };
+                n >= $min && n <= $max
+            }
+            fn name(&self) -> &'static str {
+                const MIN: i64 = $min as i64;
+                const MAX: i64 = $max as i64;
+                const_format::formatcp!("number in the range {MIN}-{MAX}")
+            }
+        }
+    };
 }

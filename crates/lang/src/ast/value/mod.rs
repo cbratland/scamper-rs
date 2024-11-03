@@ -4,10 +4,11 @@ use std::{any::Any, cell::RefCell, fmt::Debug, rc::Rc};
 
 mod function;
 mod list;
+#[macro_use]
 mod number;
 pub use function::Function;
 pub use list::{List, Vector};
-pub use number::{NonNegative, Number};
+pub use number::*;
 
 pub type NativeFnSignature = dyn Fn(&[Value]) -> Result<Value, RuntimeError>;
 
