@@ -24,6 +24,8 @@ pub fn add_to(env: &mut Env) {
     env.register("overlay/offset", overlay_offset);
     env.register("rotate", rotate);
     env.register("with-dash", with_dash);
+    env.register("font", font);
+    env.register("text", text);
 
     // extended functions
     env.register("solid-square", solid_square);
@@ -188,6 +190,50 @@ pub struct WithDash {
 }
 
 #[derive(Debug, Clone, ForeignValue)]
+pub struct Font {
+    pub face: String,
+    pub system: Option<String>,
+    pub bold: bool,
+    pub italic: bool,
+}
+
+impl Font {
+    pub fn new(face: String) -> Self {
+        Font {
+            face,
+            system: Some("sans-serif".to_string()),
+            bold: false,
+            italic: false,
+        }
+    }
+
+    pub fn to_string(&self, size: f64) -> String {
+        let mut s = String::new();
+        if self.bold {
+            s.push_str("bold ");
+        }
+        if self.italic {
+            s.push_str("italic ");
+        }
+        s.push_str(&format!("{}px \"{}\"", size, self.face));
+        if let Some(system) = &self.system {
+            s.push_str(&format!(", {}", system));
+        }
+        s
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Text {
+    pub width: f64,
+    pub height: f64,
+    pub text: String,
+    pub size: f64,
+    pub color: Color,
+    pub font: Font,
+}
+
+#[derive(Debug, Clone, ForeignValue)]
 pub enum Drawing {
     Ellipse(Shape),
     Rectangle(Shape),
@@ -199,6 +245,7 @@ pub enum Drawing {
     OverlayOffset(OverlayOffset),
     Rotate(Rotate),
     WithDash(WithDash),
+    Text(Text),
 }
 
 impl Drawing {
@@ -214,6 +261,7 @@ impl Drawing {
             Drawing::OverlayOffset(o) => o.width,
             Drawing::Rotate(r) => r.width,
             Drawing::WithDash(d) => d.width,
+            Drawing::Text(t) => t.width,
         }
     }
 
@@ -229,6 +277,7 @@ impl Drawing {
             Drawing::OverlayOffset(o) => o.height,
             Drawing::Rotate(r) => r.height,
             Drawing::WithDash(d) => d.height,
+            Drawing::Text(t) => t.height,
         }
     }
 
@@ -244,6 +293,7 @@ impl Drawing {
             Drawing::OverlayOffset(o) => vec![*o.drawing1.clone(), *o.drawing2.clone()],
             Drawing::Rotate(r) => return r.drawing.color(),
             Drawing::WithDash(d) => return d.drawing.color(),
+            Drawing::Text(t) => return t.color.to_rgb(),
         };
 
         let mut avg = drawings
@@ -404,6 +454,14 @@ impl Drawing {
                     .collect()
             }
             Drawing::WithDash(d) => d.drawing.points(),
+            Drawing::Text(t) => {
+                vec![
+                    (0.0, 0.0),
+                    (t.width, 0.0),
+                    (t.width, t.height),
+                    (0.0, t.height),
+                ]
+            }
         }
     }
 }
@@ -688,6 +746,140 @@ fn with_dash(dash_spec: List, drawing: Drawing) -> Result<Drawing, RuntimeError>
 }
 
 #[function]
+fn font(name: String, system: Option<String>, bold: Option<bool>, italic: Option<bool>) -> Font {
+    Font {
+        face: name,
+        system: Some(system.unwrap_or("sans-serif".to_string())),
+        bold: bold.unwrap_or(false),
+        italic: italic.unwrap_or(false),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg(not(target_arch = "wasm32"))]
+use font_kit::{
+    properties::{Properties, Style, Weight},
+    source::SystemSource,
+};
+
+pub struct TextDimensions {
+    pub width: f64,
+    pub height: f64,
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn measure_text(font: &Font, text: &str, size: f64) -> Result<TextDimensions, String> {
+    use web_sys;
+
+    let document = web_sys::window()
+        .ok_or("No window found")?
+        .document()
+        .ok_or("No document found")?;
+
+    let canvas = document
+        .create_element("canvas")
+        .ok()
+        .and_then(|e| e.dyn_into::<web_sys::HtmlCanvasElement>().ok())
+        .ok_or("Failed to create canvas")?;
+
+    let context = canvas
+        .get_context("2d")
+        .ok()
+        .and_then(|e| e?.dyn_into::<web_sys::CanvasRenderingContext2d>().ok())
+        .ok_or("Failed to get 2d context")?;
+
+    let font_string = font.to_string(size);
+    context.set_font(&font_string);
+
+    let metrics = context
+        .measure_text(text)
+        .map_err(|_| "Failed to measure text")?;
+    let width = metrics.width() as f64;
+
+    let ascent = metrics.actual_bounding_box_ascent() as f64;
+    let descent = metrics.actual_bounding_box_descent() as f64;
+    let height = ascent + descent + 1.0;
+
+    Ok(TextDimensions { width, height })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn measure_text(font: &Font, text: &str, size: f64) -> Result<TextDimensions, String> {
+    use font_kit::family_name::FamilyName;
+
+    let source = SystemSource::new();
+
+    let properties = Properties {
+        weight: if font.bold {
+            Weight::BOLD
+        } else {
+            Weight::NORMAL
+        },
+        style: if font.italic {
+            Style::Italic
+        } else {
+            Style::Normal
+        },
+        ..Properties::new()
+    };
+
+    let font = source
+        .select_best_match(
+            &[
+                FamilyName::Title(font.face.clone()),
+                font.system
+                    .as_ref()
+                    .map(|f| FamilyName::Title(f.clone()))
+                    .unwrap_or(FamilyName::SansSerif),
+            ],
+            &properties,
+        )
+        .map_err(|e| format!("Failed to select font: {}", e))?
+        .load()
+        .map_err(|e| format!("Failed to load font: {}", e))?;
+
+    let metrics = font.metrics();
+    let scale = size / metrics.units_per_em as f64;
+
+    let mut width = 0.0;
+    for c in text.chars() {
+        if let Some(glyph_id) = font.glyph_for_char(c) {
+            let advance = font
+                .advance(glyph_id)
+                .map_err(|e| format!("Failed to get glyph advance: {}", e))?;
+            width += advance.x() as f64 * scale;
+        }
+    }
+
+    let height = (metrics.ascent - metrics.descent) as f64 * scale;
+
+    Ok(TextDimensions { width, height })
+}
+
+#[function]
+fn text(
+    text: String,
+    size: f64,
+    color: Color,
+    font: Option<Font>,
+) -> Result<Drawing, RuntimeError> {
+    let font = font.unwrap_or_else(|| Font::new(String::from("Arial")));
+    match measure_text(&font, &text, size) {
+        Ok(dimensions) => Ok(Drawing::Text(Text {
+            width: dimensions.width,
+            height: dimensions.height,
+            text,
+            size,
+            color,
+            font,
+        })),
+        Err(e) => Err(RuntimeError::new(e, None)),
+    }
+}
+
+#[function]
 fn solid_square(length: f64, color: Color) -> Drawing {
     Drawing::Rectangle(Shape {
         width: length,
@@ -867,6 +1059,7 @@ fn image_recolor_prim(drawing: Drawing, color: Color) -> Drawing {
             drawing: Box::new(image_recolor_prim(*w.drawing, color)),
             ..w
         }),
+        Drawing::Text(t) => Drawing::Text(Text { color, ..t }),
     }
 }
 

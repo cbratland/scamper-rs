@@ -98,9 +98,8 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let arg_count = arg_names.len();
-    let indices = (0..arg_count).collect::<Vec<_>>();
 
-    // Determine if the return type is a Result
+    // check if the return type is a Result
     let is_result = if let ReturnType::Type(_, ty) = return_type {
         if let Type::Path(type_path) = &**ty {
             type_path
@@ -170,30 +169,73 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
             let #slice_name = &__slice;
         }
     } else {
+        let arg_conversions = arg_types.iter().enumerate().map(|(i, ty)| {
+	        let name = &arg_names[i];
+	        if let Some(inner_ty) = extract_option_inner_type(ty) {
+	            quote! {
+	                let #name = if #i < args.len() {
+	                    if let Some(value) = <#inner_ty as crate::ast::FromValue>::from_value(&args[#i]) {
+	                        Some(value)
+	                    } else {
+	                        return Err(crate::interpreter::RuntimeError::new(
+	                            format!(
+	                                "expected a {}, received {}",
+	                                <#inner_ty as crate::ast::FromValue>::name(),
+	                                args[#i].name()
+	                            ),
+	                            None,
+	                        ));
+	                    }
+	                } else {
+	                    None
+	                };
+	            }
+	        } else {
+	            quote! {
+	                let #name = if let Some(value) = <#ty as crate::ast::FromValue>::from_value(&args[#i]) {
+	                    value
+	                } else {
+	                    return Err(crate::interpreter::RuntimeError::new(
+	                        format!(
+	                            "expected a {}, received {}",
+	                            <#ty as crate::ast::FromValue>::name(),
+	                            args[#i].name()
+	                        ),
+	                        None,
+	                    ));
+	                };
+	            }
+	        }
+	    });
+
         quote! {
             #(#type_checks)*
 
-            if args.len() != #arg_count {
-                return Err(crate::interpreter::RuntimeError::new(
-                    format!("wrong number of arguments provided: expected {}, received {}", #arg_count, args.len()),
-                    None,
-                ));
-            }
+            let required_args = {
+                let mut count = 0;
+                #(
+                    if !matches!(stringify!(#arg_types), s if s.starts_with("Option <")) {
+                        count += 1;
+                    }
+                )*
+                count
+            };
 
-           #(
-                let #arg_names = if let Some(value) = <#arg_types as crate::ast::FromValue>::from_value(&args[#indices]) {
-                    value
-                } else {
+            if args.len() < required_args || args.len() > #arg_count {
+                if required_args != #arg_count {
                     return Err(crate::interpreter::RuntimeError::new(
-                        format!(
-                            "expected a {}, received {}",
-                            <#arg_types as crate::ast::FromValue>::name(),
-                            args[#indices].name()
-                        ),
+                        format!("wrong number of arguments provided: expected {} to {}, received {}", required_args, #arg_count, args.len()),
                         None,
                     ));
-               };
-           )*
+                } else {
+                    return Err(crate::interpreter::RuntimeError::new(
+                        format!("wrong number of arguments provided: expected {}, received {}", #arg_count, args.len()),
+                        None,
+                    ));
+                }
+            }
+
+            #(#arg_conversions)*
         }
     };
 
@@ -240,6 +282,21 @@ pub fn function(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+fn extract_option_inner_type(ty: &Type) -> Option<&Type> {
+    if let Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.first() {
+            if segment.ident == "Option" {
+                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
+                        return Some(inner_ty);
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 #[proc_macro_derive(ForeignValue)]

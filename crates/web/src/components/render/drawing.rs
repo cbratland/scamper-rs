@@ -185,6 +185,20 @@ fn render(x: f64, y: f64, drawing: &Drawing, canvas: &leptos::HtmlElement<Canvas
                 .set_line_dash(&JsValue::from(&Array::new()))
                 .unwrap();
         }
+        Drawing::Text(text) => {
+            context.set_fill_style_str(&text.color.to_string());
+            context.set_font(&text.font.to_string(text.size));
+            context.set_text_align("left");
+            let metrics = context.measure_text(&text.text).unwrap();
+            context
+                .fill_text(
+                    &text.text,
+                    x,
+                    // add the space up to the baseline so that the text is aligned with the top
+                    y + metrics.actual_bounding_box_ascent() + 1.0,
+                )
+                .unwrap();
+        }
     }
 }
 

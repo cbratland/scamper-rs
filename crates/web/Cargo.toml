@@ -13,4 +13,5 @@ scamper-rs = { path = "../lang" }
 web-sys = { version = "0.3.72", features = [
 	"Storage",
 	"CanvasRenderingContext2d",
+	"TextMetrics",
 ] }
