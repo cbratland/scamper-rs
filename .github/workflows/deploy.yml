@@ -41,6 +41,7 @@ jobs:
         run: |
           bun install
           bun run build:js
+          bun run build:docs
 
       - name: Build with Trunk
         run: |

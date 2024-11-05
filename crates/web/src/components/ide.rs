@@ -103,8 +103,8 @@ pub fn Ide() -> impl IntoView {
                 // <button id="step" class="fa-solid fa-route" disabled></button>
                 // " "
                 // <button id="run-window" class="fa-solid fa-window-maximize" disabled></button>
-                // " ⋅ "
-                // <a href="docs/index.html">"Docs"</a>
+                " ⋅ "
+                <a href="docs" target="_BLANK">"Docs"</a>
                 // " ⋅ "
                 // <a href="reference.html">"Reference"</a>
               </div>

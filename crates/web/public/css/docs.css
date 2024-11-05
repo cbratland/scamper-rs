@@ -1,0 +1,80 @@
+html,
+body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+#content {
+	display: flex;
+	flex-direction: row;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+#module-content {
+	display: flex;
+	flex-direction: row;
+	width: 90%;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+#select {
+	margin: 1em;
+	padding: 1em;
+}
+
+#index,
+#function-index {
+	margin: 1em;
+	padding: 1em;
+	background-color: #ddd;
+	font-family:
+		Menlo,
+		Consolas,
+		Monaco,
+		Liberation Mono,
+		Lucida Console,
+		monospace;
+	width: 10%;
+	flex-shrink: 0;
+	overflow: scroll;
+}
+
+#function-index {
+	background-color: #eee;
+	width: 20%;
+}
+
+#function-index ul,
+#function-index li {
+	list-style-type: none;
+	list-style-position: inside;
+	margin: 0;
+	padding: 0;
+}
+
+#docs {
+	height: 100%;
+	overflow: scroll;
+}
+
+.entry {
+	border: 1px solid black;
+	padding: 1em;
+	margin: 1em;
+	font: 1em;
+	font-family: Times, serif;
+}
+
+.entry code {
+	font-family:
+		Menlo,
+		Consolas,
+		Monaco,
+		Liberation Mono,
+		Lucida Console,
+		monospace;
+}

@@ -5,9 +5,10 @@
 	"scripts": {
 		"build:grammar": "lezer-generator crates/web/js/codemirror/syntax.grammar -o crates/web/js/codemirror/syntax.grammar.js",
 		"build:js": "bun run build:grammar && cd crates/web && bun build ./js/index.ts --outdir ./build",
+		"build:docs": "cargo run --bin scamper-doc --release -- --input crates/lang/src/modules --output crates/web/build/docs",
 		"serve": "bun run build:js && cd crates/web && trunk serve",
 		"serve:release": "bun run build:js && cd crates/web && trunk serve --release",
-		"build": "bun run build:js && cd crates/web && trunk build --release"
+		"build": "bun run build:js && bun run build:docs && cd crates/web && trunk build --release"
 	},
 	"devDependencies": {
 		"@lezer/generator": "^1.7.1",

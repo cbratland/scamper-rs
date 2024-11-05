@@ -1,8 +1,10 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, DeriveInput, Expr, FnArg, ItemFn, Pat, ReturnType, Type, TypeSlice};
-
-use syn::{parse::Parse, parse::ParseStream, punctuated::Punctuated, Lit, Meta, Token};
+use scamper_doc::ScamperDoc;
+use syn::{
+    parse::Parse, parse::ParseStream, parse_macro_input, punctuated::Punctuated, DeriveInput, Expr,
+    FnArg, Ident, ItemFn, Lit, Meta, Pat, ReturnType, Token, Type, TypeSlice,
+};
 
 #[derive(Debug)]
 struct ContractAttr {
@@ -409,4 +411,80 @@ pub fn derive_struct_conversion(input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+#[proc_macro_attribute]
+pub fn scamper_doc(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let doc = parse_macro_input!(attr as ScamperDoc);
+    let input_fn = parse_macro_input!(item as ItemFn);
+
+    let fn_name = &input_fn.sig.ident;
+    let fn_args = &input_fn.sig.inputs;
+
+    // Generate documentation string
+    let doc_string = generate_doc_string(&doc, fn_name, fn_args);
+
+    // Add documentation as a doc comment
+    let expanded = quote! {
+        #[doc = #doc_string]
+        #input_fn
+    };
+
+    TokenStream::from(expanded)
+}
+
+fn generate_doc_string(
+    doc: &ScamperDoc,
+    fn_name: &Ident,
+    fn_args: &Punctuated<FnArg, Token![,]>,
+) -> String {
+    let mut result = String::new();
+
+    let fn_name_str = fn_name.to_string();
+
+    let name = doc
+        .name
+        .as_ref()
+        .map(|s| s.as_str())
+        .unwrap_or_else(|| fn_name_str.as_str());
+    result.push_str(&format!("({}", name));
+
+    for arg in fn_args {
+        if let FnArg::Typed(pat_type) = arg {
+            if let Pat::Ident(pat_ident) = &*pat_type.pat {
+                result.push_str(&format!(" {}", pat_ident.ident));
+            }
+        }
+    }
+
+    if let Some(ret_type) = &doc.return_type {
+        result.push_str(&format!(") -> {}\n", ret_type));
+    } else {
+        result.push_str(")\n");
+    }
+
+    for arg in fn_args {
+        if let FnArg::Typed(pat_type) = arg {
+            if let Pat::Ident(pat_ident) = &*pat_type.pat {
+                let param_name = pat_ident.ident.to_string();
+                if let Some(param_doc) = doc.params.iter().find(|p| p.name == param_name) {
+                    result.push_str(&format!(
+                        "  {}: {}",
+                        param_name,
+                        param_doc.type_name.as_ref().unwrap_or(&"any".to_string())
+                    ));
+                    if let Some(desc) = &param_doc.description {
+                        result.push_str(&format!(", {}", desc));
+                    }
+                    result.push('\n');
+                }
+            }
+        }
+    }
+
+    // Description
+    result.push_str(&doc.description);
+    result.push('\n');
+
+    result
 }

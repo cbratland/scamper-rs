@@ -25,6 +25,7 @@ jobs:
         run: |
           bun install
           bun run build:js
+          bun run build:docs
 
       - name: Build
         run: cargo build --verbose

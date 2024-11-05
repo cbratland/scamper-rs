@@ -1,8 +1,9 @@
 use leptos::*;
+use leptos_router::*;
 
 pub mod bindings;
 mod components;
-use components::Ide;
+use components::{Docs, Ide};
 
 const VERSION: &str = "0.1.0";
 
@@ -13,7 +14,13 @@ fn main() {
 
     mount_to_body(move || {
         view! {
-            <Ide />
+            <Router>
+                <Routes>
+                    <Route path="/" view=Ide/>
+                    <Route path="/docs" view=Docs/>
+                    <Route path="/docs/:module" view=Docs/>
+                </Routes>
+            </Router>
         }
     })
 }

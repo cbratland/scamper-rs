@@ -3,7 +3,7 @@ use crate::{
     interpreter::{Env, RuntimeError},
 };
 use core::f64;
-use scamper_macros::function;
+use scamper_macros::{function, scamper_doc};
 
 pub fn add_to(env: &mut Env) {
     // numbers (6.2)
@@ -189,16 +189,35 @@ pub fn add_to(env: &mut Env) {
     env.register_value("void", Value::Void);
 }
 
+#[scamper_doc(
+    name = "equal?",
+    description = "Returns `#t` if and only if `v1` and `v2` are (structurally) equal values.",
+    param = ["v1", "any"],
+    param = ["v2", "any"],
+    return_type = "boolean?"
+)]
 #[function]
 fn equal_q(x: Value, y: Value) -> bool {
     x == y
 }
 
+#[scamper_doc(
+    name = "number?",
+    description = "Returns `#t` if and only if `v` is a number.",
+    param = ["v", "any"],
+    return_type = "boolean?"
+)]
 #[function]
 fn number_q(x: Value) -> bool {
     matches!(x, Value::Integer(_) | Value::Float(_))
 }
 
+#[scamper_doc(
+    name = "real?",
+    description = "Returns `#t` if and only if `v` is a real number.",
+    param = ["v", "any"],
+    return_type = "boolean?"
+)]
 #[function]
 fn real_q(x: Value) -> bool {
     match x {
@@ -208,6 +227,12 @@ fn real_q(x: Value) -> bool {
     }
 }
 
+#[scamper_doc(
+    name = "integer?",
+    description = "Returns `#t` if and only if `v` is an integer.",
+    param = ["v", "any"],
+    return_type = "boolean?"
+)]
 #[function]
 fn integer_q(x: Value) -> bool {
     match x {
@@ -217,6 +242,12 @@ fn integer_q(x: Value) -> bool {
     }
 }
 
+#[scamper_doc(
+    name = "nan?",
+    description = "Returns `#t` if and only if `v` is the number `NaN`.",
+    param = ["v", "any"],
+    return_type = "boolean?"
+)]
 #[function]
 fn nan_q(x: Value) -> bool {
     match x {
@@ -225,26 +256,56 @@ fn nan_q(x: Value) -> bool {
     }
 }
 
+#[scamper_doc(
+    name = "zero?",
+    description = "Returns `#t` if and only if `v` is zero.",
+    param = ["v", "any"],
+    return_type = "boolean?"
+)]
 #[function]
 fn zero_q(x: Number) -> bool {
     x == 0.0
 }
 
+#[scamper_doc(
+    name = "positive?",
+    description = "Returns `#t` if and only if `v` is positive.",
+    param = ["v", "any"],
+    return_type = "boolean?"
+)]
 #[function]
 fn positive_q(x: Number) -> bool {
     x > 0.0
 }
 
+#[scamper_doc(
+    name = "negative?",
+    description = "Returns `#t` if and only if `v` is negative.",
+    param = ["v", "any"],
+    return_type = "boolean?"
+)]
 #[function]
 fn negative_q(x: Number) -> bool {
     x < 0.0
 }
 
+#[scamper_doc(
+    name = "odd?",
+    description = "Returns `#t` if and only if `v` is odd.",
+    param = ["v", "any"],
+    return_type = "boolean?"
+)]
 #[function]
 fn odd_q(x: i64) -> bool {
     x % 2 != 0
 }
 
+#[scamper_doc(
+    name = "even?",
+    description = "Returns `#t` if and only if `v` is even.",
+    param = ["v", "any"],
+    return_type = "boolean?"
+)]
 #[function]
 fn even_q(x: i64) -> bool {
     x % 2 == 0
@@ -729,7 +790,14 @@ fn assoc_ref(v: Value, l: List) -> Result<Value, RuntimeError> {
     ))
 }
 
-// Returns a new association list containing the same key-value pairs as l except that k is associated with v.
+#[scamper_doc(
+    name = "assoc-set",
+    description = "Returns a new association list containing the same key-value pairs as `l` except that `k` is associated with `v`.",
+    param = ["k", "any"],
+    param = ["v", "any"],
+    param = ["l", "list?", "an association list"],
+    return_type = "list?"
+)]
 #[function]
 fn assoc_set(k: Value, v: Value, l: List) -> Result<List, RuntimeError> {
     let vec: Vec<Value> = l.into();
