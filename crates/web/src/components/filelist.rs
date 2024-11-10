@@ -1,4 +1,4 @@
-use crate::VERSION;
+use crate::{URL_PREFIX, VERSION};
 use leptos::*;
 use leptos_meta::Style;
 use leptos_router::*;
@@ -406,7 +406,7 @@ pub fn FileList() -> impl IntoView {
             <div id="header">
                 <div class="text-align: left;">
                     "scamper-rs " <span id="version">{format!("({})", VERSION)}</span> " ⋅ "
-                    <a href="/docs" target="_BLANK">"Docs"</a> // " ⋅ "
+                    <a href=format!("{URL_PREFIX}/docs") target="_BLANK">"Docs"</a> // " ⋅ "
                     // <a href="reference.html">Reference</a>
 
                     {move || if loading.get() {

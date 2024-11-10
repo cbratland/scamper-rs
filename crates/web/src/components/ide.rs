@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use super::{CodeMirror, RenderedValue, ValueOrError};
 use crate::bindings::create_split;
-use crate::VERSION;
+use crate::{URL_PREFIX, VERSION};
 use html::Div;
 use leptos::*;
 use leptos_dom::helpers::TimeoutHandle;
@@ -203,7 +203,7 @@ pub fn Ide() -> impl IntoView {
         <div id="ide">
         <div id="header">
               <div class="text-align: left;">
-                <a href="/">"scamper-rs"</a>
+                <a href=format!("{URL_PREFIX}/")>"scamper-rs"</a>
                 " "
                 <span id="version">{format!("({})", VERSION)}</span>
                 " ⋅ "
@@ -215,7 +215,7 @@ pub fn Ide() -> impl IntoView {
                 // " "
                 // <button id="run-window" class="fa-solid fa-window-maximize" disabled></button>
                 " ⋅ "
-                <a href="/docs" target="_BLANK">"Docs"</a>
+                <a href=format!("{URL_PREFIX}/docs") target="_BLANK">"Docs"</a>
                 // " ⋅ "
                 // <a href="reference.html">"Reference"</a>
               </div>

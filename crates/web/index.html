@@ -8,9 +8,9 @@
 		<link data-trunk rel="copy-dir" href="public/webfonts/" />
 		<link data-trunk rel="copy-file" href="public/css/docs.css" />
 		<link data-trunk rel="copy-file" href="public/css/file-picker.css" />
+		<link data-trunk rel="copy-file" href="public/404.html" />
 
 		<link data-trunk rel="css" href="public/css/normalize.css" />
-		<!-- Fontawesome (brands + solid) -->
 		<link data-trunk rel="css" href="public/css/fontawesome.min.css" />
 		<link data-trunk rel="css" href="public/css/brands.min.css" />
 		<link data-trunk rel="css" href="public/css/solid.min.css" />
@@ -22,6 +22,17 @@
 			href="https://unpkg.com/codemirror@5.65.18/lib/codemirror.css"
 		/>
 		<script src="https://unpkg.com/codemirror@5.65.18/lib/codemirror.js"></script>
+
+		<!-- handle redirects from 404 -->
+		<script>
+			(function () {
+				const redirect = sessionStorage.getItem("redirect");
+				if (redirect) {
+					sessionStorage.removeItem("redirect");
+					window.history.pushState(null, "", redirect);
+				}
+			})();
+		</script>
 	</head>
 	<body></body>
 </html>

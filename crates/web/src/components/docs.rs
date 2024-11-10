@@ -1,3 +1,4 @@
+use crate::URL_PREFIX;
 use lazy_static::lazy_static;
 use leptos::*;
 use leptos_meta::Stylesheet;
@@ -96,7 +97,7 @@ fn DocSidebar() -> impl IntoView {
                 {DOCUMENTATION.iter().map(|(name, _)| {
                     view! {
                         <li>
-                            <A href={format!("/docs/{}", name)}>
+                            <A href={format!("{URL_PREFIX}/docs/{}", name)}>
                                 {name.to_string()}
                             </A>
                         </li>
@@ -212,7 +213,7 @@ pub fn Docs() -> impl IntoView {
     });
 
     view! {
-        <Stylesheet href="../docs.css"/>
+        <Stylesheet href=format!("{URL_PREFIX}/docs.css")/>
         <div id="content">
             <DocSidebar/>
             <div id="module-content">
