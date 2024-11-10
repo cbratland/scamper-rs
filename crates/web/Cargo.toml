@@ -10,8 +10,18 @@ leptos = { version = "0.6.15", features = ["csr"] }
 leptos_meta = { version = "0.6.15", features = ["csr"] }
 leptos_router = { version = "0.6.15", features = ["csr"] }
 scamper-rs = { path = "../lang" }
+wasm-bindgen-futures = "0.4.45"
 web-sys = { version = "0.3.72", features = [
+	"Window",
+	"Navigator",
+	"StorageManager",
 	"Storage",
 	"CanvasRenderingContext2d",
 	"TextMetrics",
+	"FileSystemDirectoryHandle",
+	"FileSystemFileHandle",
+	"FileSystemHandle",
+	"FileSystemGetFileOptions",
+	"FileSystemWritableFileStream",
+	"File",
 ] }

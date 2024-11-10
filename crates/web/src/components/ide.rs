@@ -1,36 +1,157 @@
+use std::time::Duration;
+
 use super::{CodeMirror, RenderedValue, ValueOrError};
 use crate::bindings::create_split;
 use crate::VERSION;
 use html::Div;
 use leptos::*;
+use leptos_dom::helpers::TimeoutHandle;
+use leptos_router::*;
 use scamper_rs::{interpreter::Output, Engine};
-use web_sys::HtmlElement;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{
+    FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemWritableFileStream, HtmlElement,
+    StorageManager,
+};
 
 #[cfg(debug_assertions)]
 use leptos::SpecialNonReactiveZone;
 
-const STORAGE_KEY: &str = "scamper_code";
-
 #[component]
 pub fn Ide() -> impl IntoView {
-    // let (loading, set_loading) = create_signal(true);
-    let (dirty, set_dirty) = create_signal(false);
+    let params = use_params_map();
+    let current_file = create_memo(move |_| params.with(|params| params.get("file").cloned()));
 
-    // load stored input code
-    let starting_input = window()
-        .local_storage()
-        .ok()
-        .flatten()
-        .and_then(|storage| storage.get_item(STORAGE_KEY).ok().flatten())
-        .unwrap_or_default();
-    let (input, set_input) = create_signal(starting_input.clone());
-    let output = create_rw_signal(Vec::new());
+    let (loading, set_loading) = create_signal(true);
+    let (error, set_error) = create_signal(Option::<String>::None);
+
+    let (last_code, set_last_code) = create_signal(String::new());
+    let (timer_handle, set_timer_handle) = create_signal(None::<TimeoutHandle>);
+
+    let (file_handle, set_file_handle) = create_signal(None);
+    let (start_input, set_start_input) = create_signal(None);
+
+    let (dirty, set_dirty) = create_signal(false);
+    let (input, set_input) = create_signal(String::new());
+    let (output, set_output) = create_signal(Vec::new());
+
+    // load file for starting input
+    create_effect(move |_| {
+        let Some(current_file) = current_file.get() else {
+            return;
+        };
+
+        spawn_local(async move {
+            let navigator = window().navigator();
+            let storage: StorageManager = navigator.storage();
+
+            // get storage directory
+            match JsFuture::from(storage.get_directory()).await {
+                Ok(handle) => {
+                    let dir_handle: FileSystemDirectoryHandle = handle.unchecked_into();
+
+                    // get current file
+                    match JsFuture::from(dir_handle.get_file_handle(&current_file)).await {
+                        Ok(file_handle_js) => {
+                            let file_handle: FileSystemFileHandle = file_handle_js.unchecked_into();
+                            set_file_handle.set(Some(file_handle.clone()));
+
+                            // read file content
+                            match JsFuture::from(file_handle.get_file()).await {
+                                Ok(file) => {
+                                    let file: web_sys::File = file.unchecked_into();
+                                    let text = JsFuture::from(file.text())
+                                        .await
+                                        .ok()
+                                        .and_then(|t| t.as_string())
+                                        .unwrap_or_default();
+                                    set_input.set(text.clone());
+                                    set_start_input.set(Some(text.clone()));
+                                }
+                                Err(_) => {
+                                    set_error.set(Some("Error reading file contents".to_string()));
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            set_error.set(Some("Error reading file".to_string()));
+                        }
+                    }
+                }
+                Err(_) => {
+                    set_error.set(Some("Error reading browser storage".to_string()));
+                }
+            }
+
+            set_loading.set(false);
+        });
+    });
+
+    // debounced save effect
+    create_effect(move |_| {
+        let code = input.get();
+
+        let Some(file_handle) = file_handle.get() else {
+            return;
+        };
+
+        if code == last_code.get() {
+            return;
+        }
+
+        set_last_code.set(code.clone());
+
+        // cancel existing timer
+        if let Some(handle) = timer_handle.get() {
+            handle.clear();
+        }
+
+        // create timer to save code after 500ms
+        let handle = set_timeout_with_handle(
+            move || {
+                spawn_local(async move {
+                    let stream: FileSystemWritableFileStream =
+                        match JsFuture::from(file_handle.create_writable()).await {
+                            Ok(writable) => writable.unchecked_into(),
+                            Err(_) => {
+                                return;
+                            }
+                        };
+
+                    if let Ok(promise) = stream.truncate_with_f64(0.0) {
+                        let _ = JsFuture::from(promise).await;
+                    }
+
+                    if let Ok(promise) = stream.write_with_str(&code) {
+                        let _ = JsFuture::from(promise).await;
+                    }
+
+                    let _ = JsFuture::from(stream.close()).await;
+                });
+            },
+            Duration::from_millis(500),
+        )
+        .expect("failed to set timeout");
+
+        set_timer_handle.set(Some(handle));
+    });
+
+    // remove timer when component is destroyed
+    on_cleanup(move || {
+        if let Some(handle) = timer_handle.get() {
+            handle.clear();
+        }
+    });
 
     let editor = create_node_ref::<Div>();
     let results = create_node_ref::<Div>();
 
     // create split
     create_effect(move |_| {
+        if loading.get() {
+            return;
+        }
         use wasm_bindgen::JsCast;
         if let (Some(editor), Some(results)) = (
             editor
@@ -74,37 +195,27 @@ pub fn Ide() -> impl IntoView {
             Err(err) => vec![ValueOrError::Error(err.emit_to_web_string(&code))],
         };
 
-        output.set(values);
+        set_output.set(values);
         set_dirty.set(false);
     };
-
-    // save code to local storage
-    create_effect(move |_| {
-        if let Ok(Some(storage)) = window().local_storage() {
-            let code = input.get();
-            if storage.set_item(STORAGE_KEY, &code).is_err() {
-                logging::error!("error while trying to set item in localStorage");
-            }
-        }
-    });
 
     view! {
         <div id="ide">
         <div id="header">
               <div class="text-align: left;">
-                // <a href="file-chooser.html">"Scamper"</a>
-                // " "
+                <a href="/">"scamper-rs"</a>
+                " "
                 <span id="version">{format!("({})", VERSION)}</span>
                 " ⋅ "
-                // <span id="current-file"></span>
-                // " ⋅ "
+                <span id="current-file">{move || current_file.get()}</span>
+                " ⋅ "
                 <button id="run" class="fa-solid fa-play" on:click=run_click></button>
                 // " "
                 // <button id="step" class="fa-solid fa-route" disabled></button>
                 // " "
                 // <button id="run-window" class="fa-solid fa-window-maximize" disabled></button>
                 " ⋅ "
-                <a href="docs" target="_BLANK">"Docs"</a>
+                <a href="/docs" target="_BLANK">"Docs"</a>
                 // " ⋅ "
                 // <a href="reference.html">"Reference"</a>
               </div>
@@ -114,11 +225,22 @@ pub fn Ide() -> impl IntoView {
               </div>
             </div>
             <div id="content">
-                <CodeMirror
-                    input=starting_input
-                    on_change
-                    node_ref=editor
-                />
+                {move || {
+                    if let Some(input) = start_input.get() {
+                        view! {
+                            <CodeMirror
+                                input=input
+                                on_change
+                                node_ref=editor
+                            />
+                        }.into_view()
+                    } else {
+                        view! {
+                            <div id="editor"></div>
+                        }.into_view()
+                    }
+                }}
+
                 <div id="results" node_ref=results>
                     <div id="results-toolbar">
                         <div class="text-align: left;">
@@ -145,7 +267,7 @@ pub fn Ide() -> impl IntoView {
                             class="text-align: right;"
                             style:display={move || if dirty.get() { "block" } else { "none" }}
                         >
-                            <em>(Warning: results out of sync with updated code)</em>
+                            <em>"(Warning: results out of sync with updated code)"</em>
                         </div>
                     </div>
                     <div id="output">
@@ -161,17 +283,20 @@ pub fn Ide() -> impl IntoView {
             </div>
         </div>
 
-        // <div id="loading" style:display={move || if loading.get() { "block" } else { "none" }}>
-        //     <div id="loading-content">
-        //         "Loading Scamper.."
-        //         <button
-        //             on:click=move |_| {
-        //                 set_loading.set(false);
-        //             }
-        //         >
-        //             "close"
-        //         </button>
-        //     </div>
-        // </div>
+        <div id="loading" style:display={move || if loading.get() || error.get().is_some() { "block" } else { "none" }}>
+            <div id="loading-content">
+                {move || {
+                    if let Some(err) = error.get() {
+                        view! {
+                            {err}
+                        }.into_view()
+                    } else {
+                        view! {
+                           "Loading Scamper.."
+                        }.into_view()
+                    }
+                }}
+            </div>
+        </div>
     }
 }

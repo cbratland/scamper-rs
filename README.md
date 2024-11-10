@@ -37,9 +37,9 @@ we're still missing some things from the original scamper, but here's the progre
 	- [ ] canvas
 	- [ ] html
 - [x] web editor
+- [x] multiple files in web editor
 - [ ] non-functional stuff
 	- [ ] mutable vectors (e.g. `vector-set!`)
 	- [ ] music playing and instrument loading (`play-composition`, `load-instrument`, etc.)
 - [ ] reactive image files
 - [ ] debugging features of the original scamper
-- [ ] multiple files in web editor

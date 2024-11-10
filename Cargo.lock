@@ -2151,6 +2151,7 @@ dependencies = [
  "leptos_meta",
  "leptos_router",
  "scamper-rs",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
