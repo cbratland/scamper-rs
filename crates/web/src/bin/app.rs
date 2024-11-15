@@ -2,16 +2,9 @@ use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 
-pub mod bindings;
-mod components;
-use components::{Docs, FileList, Ide};
-
-const VERSION: &str = "0.1.0";
-const URL_PREFIX: &str = if let Some(prefix) = option_env!("URL_PREFIX") {
-    prefix
-} else {
-    ""
-};
+use web::bindings;
+use web::components::{Docs, FileList, Ide};
+use web::URL_PREFIX;
 
 fn main() {
     console_error_panic_hook::set_once();

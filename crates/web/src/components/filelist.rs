@@ -1,4 +1,7 @@
-use crate::{URL_PREFIX, VERSION};
+use crate::{
+    fs_worker::{self, FsRequest, FsResponse},
+    URL_PREFIX, VERSION,
+};
 use leptos::*;
 use leptos_meta::Style;
 use leptos_router::*;
@@ -6,7 +9,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemGetFileOptions, FileSystemHandle,
-    FileSystemWritableFileStream, StorageManager,
+    StorageManager,
 };
 
 #[derive(Debug, Clone)]
@@ -96,35 +99,12 @@ async fn load_directory() -> Result<Vec<FileEntry>, String> {
 async fn create_new_file(
     directory_handle: &FileSystemDirectoryHandle,
     filename: &str,
-    contents: Option<&str>,
 ) -> Result<(), String> {
     let options = FileSystemGetFileOptions::new();
     options.set_create(true);
-
-    let file_handle: FileSystemFileHandle =
-        JsFuture::from(directory_handle.get_file_handle_with_options(filename, &options))
-            .await
-            .map_err(|e| format!("Failed to create file: {:?}", e))?
-            .unchecked_into();
-
-    if let Some(contents) = contents {
-        let writable: FileSystemWritableFileStream = JsFuture::from(file_handle.create_writable())
-            .await
-            .map_err(|e| format!("Failed to create writable: {:?}", e))?
-            .unchecked_into();
-
-        JsFuture::from(
-            writable
-                .write_with_str(contents)
-                .map_err(|e| format!("Failed to write content: {:?}", e))?,
-        )
+    _ = JsFuture::from(directory_handle.get_file_handle_with_options(filename, &options))
         .await
-        .map_err(|e| format!("Failed to write content: {:?}", e))?;
-
-        JsFuture::from(writable.close())
-            .await
-            .map_err(|e| format!("Failed to close file: {:?}", e))?;
-    }
+        .map_err(|e| format!("Failed to create file: {:?}", e))?;
 
     Ok(())
 }
@@ -140,33 +120,16 @@ async fn delete_file(
     Ok(())
 }
 
-async fn rename_file(
-    directory_handle: &FileSystemDirectoryHandle,
-    old_name: &str,
-    new_name: &str,
-) -> Result<(), String> {
-    let old_handle: FileSystemFileHandle =
-        JsFuture::from(directory_handle.get_file_handle(old_name))
-            .await
-            .map_err(|e| format!("Failed to get file handle: {:?}", e))?
-            .unchecked_into();
+async fn rename_file(old_name: String, new_name: String) -> Result<(), String> {
+    let result = fs_worker::send_request(FsRequest::MoveFile(old_name, new_name)).await;
 
-    let file: web_sys::File = JsFuture::from(old_handle.get_file())
-        .await
-        .map_err(|e| format!("Failed to get file: {:?}", e))?
-        .unchecked_into();
-
-    let contents = JsFuture::from(file.text())
-        .await
-        .map_err(|e| format!("Failed to get file contents: {:?}", e))?
-        .as_string()
-        .ok_or("Failed to get file contents")?;
-
-    create_new_file(directory_handle, new_name, Some(&contents)).await?;
-
-    delete_file(directory_handle, old_name).await?;
-
-    Ok(())
+    match result {
+        Some(response) => match response {
+            FsResponse::Error(e) => Err(e),
+            _ => Ok(()),
+        },
+        None => Err("Failed to rename file".to_string()),
+    }
 }
 
 async fn download_file(file_handle: &FileSystemFileHandle) -> Result<(), String> {
@@ -265,7 +228,7 @@ pub fn FileList() -> impl IntoView {
                 set_loading.set(true);
 
                 spawn_local(async move {
-                    match create_new_file(&dir_handle, &filename, None).await {
+                    match create_new_file(&dir_handle, &filename).await {
                         Ok(_) => match load_directory().await {
                             Ok(file_entries) => {
                                 set_files.set(file_entries);
@@ -472,31 +435,29 @@ pub fn FileList() -> impl IntoView {
                                                 on:click=move |e| {
                                                     e.stop_propagation();
                                                     if let Some(new_name) = window().prompt_with_message("Enter new file name:").unwrap() {
-                                                        if let Some(dir_handle) = directory_handle.get() {
-                                                            let name = file.name.clone();
-                                                            spawn_local(async move {
-                                                                set_loading.set(true);
-                                                                match rename_file(&dir_handle, &name, &new_name).await {
-                                                                    Ok(_) => {
-                                                                        // update file name in the list
-                                                                        set_files.set(files.get().into_iter().map(|entry| {
-                                                                            if entry.name == name {
-                                                                                FileEntry {
-                                                                                    name: new_name.clone(),
-                                                                                    ..entry
-                                                                                }
-                                                                            } else {
-                                                                                entry
+                                                        let name = file.name.clone();
+                                                        spawn_local(async move {
+                                                            set_loading.set(true);
+                                                            match rename_file(name.clone(), new_name.clone()).await {
+                                                                Ok(_) => {
+                                                                    // update file name in the list
+                                                                    set_files.set(files.get().into_iter().map(|entry| {
+                                                                        if entry.name == name {
+                                                                            FileEntry {
+                                                                                name: new_name.clone(),
+                                                                                ..entry
                                                                             }
-                                                                        }).collect());
-                                                                    },
-                                                                    Err(err) => {
-                                                                       set_error.set(Some(err.to_string()));
-                                                                    }
+                                                                        } else {
+                                                                            entry
+                                                                        }
+                                                                    }).collect());
+                                                                },
+                                                                Err(err) => {
+                                                                    set_error.set(Some(err.to_string()));
                                                                 }
-                                                                set_loading.set(false);
-                                                            });
-                                                        }
+                                                            }
+                                                            set_loading.set(false);
+                                                        });
                                                     }
                                                 }
                                             />

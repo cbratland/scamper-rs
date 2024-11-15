@@ -1,19 +1,21 @@
-use std::time::Duration;
-
 use super::{CodeMirror, RenderedValue, ValueOrError};
 use crate::bindings::create_split;
+use crate::fs_worker::{FsRequest, FsResponse, FsWorker};
 use crate::{URL_PREFIX, VERSION};
+use ev::Event;
+use futures::stream::StreamExt;
+use gloo_worker::{Spawnable, WorkerBridge};
 use html::Div;
 use leptos::*;
 use leptos_dom::helpers::TimeoutHandle;
 use leptos_router::*;
+use pinned::mpsc;
+use pinned::mpsc::UnboundedReceiver;
 use scamper_rs::{interpreter::Output, Engine};
+use std::{cell::RefCell, rc::Rc, time::Duration};
+use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{
-    FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemWritableFileStream, HtmlElement,
-    StorageManager,
-};
+use web_sys::HtmlElement;
 
 #[cfg(debug_assertions)]
 use leptos::SpecialNonReactiveZone;
@@ -24,75 +26,110 @@ pub fn Ide() -> impl IntoView {
     let current_file = create_memo(move |_| params.with(|params| params.get("file").cloned()));
 
     let (loading, set_loading) = create_signal(true);
-    let (error, set_error) = create_signal(Option::<String>::None);
+    let (error, set_error) = create_signal::<Option<String>>(None);
 
     let (last_code, set_last_code) = create_signal(String::new());
-    let (timer_handle, set_timer_handle) = create_signal(None::<TimeoutHandle>);
+    let (timer_handle, set_timer_handle) = create_signal::<Option<TimeoutHandle>>(None);
 
-    let (file_handle, set_file_handle) = create_signal(None);
     let (start_input, set_start_input) = create_signal(None);
 
     let (dirty, set_dirty) = create_signal(false);
     let (input, set_input) = create_signal(String::new());
     let (output, set_output) = create_signal(Vec::new());
 
-    // load file for starting input
+    let (worker_bridge, set_worker_bridge) = create_signal(None);
+    let (receiver, set_receiver) = create_signal(None);
+
+    // load fs worker and initial file content
     create_effect(move |_| {
         let Some(current_file) = current_file.get() else {
             return;
         };
 
+        // create fs worker instance to read and write the file
+        if worker_bridge.get().is_none() {
+            let mut spawner = FsWorker::spawner();
+
+            let (tx, rx) = mpsc::unbounded();
+            spawner.callback(move |output| {
+                let _ = tx.send_now(output);
+            });
+            set_receiver.set(Some(Rc::new(RefCell::new(rx))));
+
+            let bridge = spawner.spawn(&format!("{URL_PREFIX}/fs_worker.js"));
+
+            set_worker_bridge.set(Some(Rc::new(bridge)));
+        }
+
+        let Some(bridge) = worker_bridge.get() else {
+            return;
+        };
+
+        let Some(receiver) = receiver.get() else {
+            return;
+        };
+
+        // read initial file content
         spawn_local(async move {
-            let navigator = window().navigator();
-            let storage: StorageManager = navigator.storage();
+            bridge.send(FsRequest::ReadFile(current_file));
 
-            // get storage directory
-            match JsFuture::from(storage.get_directory()).await {
-                Ok(handle) => {
-                    let dir_handle: FileSystemDirectoryHandle = handle.unchecked_into();
+            let result = receiver.borrow_mut().next().await.unwrap();
 
-                    // get current file
-                    match JsFuture::from(dir_handle.get_file_handle(&current_file)).await {
-                        Ok(file_handle_js) => {
-                            let file_handle: FileSystemFileHandle = file_handle_js.unchecked_into();
-                            set_file_handle.set(Some(file_handle.clone()));
-
-                            // read file content
-                            match JsFuture::from(file_handle.get_file()).await {
-                                Ok(file) => {
-                                    let file: web_sys::File = file.unchecked_into();
-                                    let text = JsFuture::from(file.text())
-                                        .await
-                                        .ok()
-                                        .and_then(|t| t.as_string())
-                                        .unwrap_or_default();
-                                    set_input.set(text.clone());
-                                    set_start_input.set(Some(text.clone()));
-                                }
-                                Err(_) => {
-                                    set_error.set(Some("Error reading file contents".to_string()));
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            set_error.set(Some("Error reading file".to_string()));
-                        }
+            match result {
+                FsResponse::FileContent(text) => {
+                    set_input.set(text.clone());
+                    set_start_input.set(Some(text));
+                    set_loading.set(false);
+                }
+                FsResponse::Error(e) => {
+                    if e == "Failed to get file handle" {
+                        set_error.set(Some(String::from(
+                            "File already in use by another tab or window",
+                        )));
+                    } else {
+                        set_error.set(Some(e));
                     }
                 }
-                Err(_) => {
-                    set_error.set(Some("Error reading browser storage".to_string()));
+                _ => {
+                    set_error.set(Some("Error reading file".to_string()));
                 }
-            }
-
-            set_loading.set(false);
+            };
         });
     });
+
+    let save = |bridge: Rc<WorkerBridge<FsWorker>>,
+                receiver: Rc<RefCell<UnboundedReceiver<FsResponse>>>,
+                current_file: String,
+                code: String,
+                set_error: WriteSignal<Option<String>>| {
+        spawn_local(async move {
+            bridge.send(FsRequest::WriteFile(current_file, code));
+
+            let result = receiver.borrow_mut().next().await.unwrap();
+
+            match result {
+                FsResponse::WriteComplete => {}
+                FsResponse::Error(e) => {
+                    set_error.set(Some(e));
+                }
+                _ => {
+                    set_error.set(Some("Error writing file".to_string()));
+                }
+            };
+        });
+    };
 
     // debounced save effect
     create_effect(move |_| {
         let code = input.get();
 
-        let Some(file_handle) = file_handle.get() else {
+        let Some(current_file) = current_file.get() else {
+            return;
+        };
+        let Some(bridge) = worker_bridge.get() else {
+            return;
+        };
+        let Some(receiver) = receiver.get() else {
             return;
         };
 
@@ -110,25 +147,7 @@ pub fn Ide() -> impl IntoView {
         // create timer to save code after 500ms
         let handle = set_timeout_with_handle(
             move || {
-                spawn_local(async move {
-                    let stream: FileSystemWritableFileStream =
-                        match JsFuture::from(file_handle.create_writable()).await {
-                            Ok(writable) => writable.unchecked_into(),
-                            Err(_) => {
-                                return;
-                            }
-                        };
-
-                    if let Ok(promise) = stream.truncate_with_f64(0.0) {
-                        let _ = JsFuture::from(promise).await;
-                    }
-
-                    if let Ok(promise) = stream.write_with_str(&code) {
-                        let _ = JsFuture::from(promise).await;
-                    }
-
-                    let _ = JsFuture::from(stream.close()).await;
-                });
+                save(bridge, receiver, current_file, code, set_error);
             },
             Duration::from_millis(500),
         )
@@ -143,6 +162,31 @@ pub fn Ide() -> impl IntoView {
             handle.clear();
         }
     });
+
+    // save file on beforeunload
+    let closure = Closure::wrap(Box::new(move |_: Event| {
+        if error.get().is_some() {
+            return;
+        }
+
+        let Some(current_file) = current_file.get() else {
+            return;
+        };
+        let Some(bridge) = worker_bridge.get() else {
+            return;
+        };
+        let Some(receiver) = receiver.get() else {
+            return;
+        };
+        let code = input.get();
+        save(bridge, receiver, current_file, code, set_error);
+    }) as Box<dyn FnMut(_)>);
+
+    window()
+        .add_event_listener_with_callback("beforeunload", closure.as_ref().unchecked_ref())
+        .expect("failed to set beforeunload");
+
+    closure.forget();
 
     let editor = create_node_ref::<Div>();
     let results = create_node_ref::<Div>();
